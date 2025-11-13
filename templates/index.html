@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <title>Gestión de Inventario</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background-color: #f5f6fa;
+            color: #2f3640;
+        }
+        header {
+            background-color: #273c75;
+            color: white;
+            padding: 2rem 1rem;
+            text-align: center;
+        }
+        nav {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            padding: 2rem;
+        }
+        .menu-item {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem 2rem;
+            min-width: 220px;
+            text-align: center;
+            text-decoration: none;
+            color: #273c75;
+            font-weight: 600;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .menu-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Gestión de Inventario</h1>
+        <p>Selecciona una opción para comenzar</p>
+    </header>
+    <nav>
+        <a class="menu-item" href="#">Crear gavetas, baldas, cajones</a>
+        <a class="menu-item" href="#">Leer códigos de barras</a>
+        <a class="menu-item" href="#">Subir Excel</a>
+        <a class="menu-item" href="#">Exportar informes</a>
+        <a class="menu-item" href="#">Buscar artículos</a>
+        <a class="menu-item" href="#">Mostrar stock</a>
+        <a class="menu-item" href="#">Panel de control</a>
+    </nav>
+</body>
+</html>
