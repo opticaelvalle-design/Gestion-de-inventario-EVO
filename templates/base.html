@@ -242,6 +242,7 @@
         <a href="{{ url_for('buscar_articulos') }}" class="{% if request.path == url_for('buscar_articulos') %}active{% endif %}">Buscar artículos</a>
         <a href="{{ url_for('mostrar_stock') }}" class="{% if request.path == url_for('mostrar_stock') %}active{% endif %}">Mostrar stock</a>
         <a href="{{ url_for('panel_control') }}" class="{% if request.path == url_for('panel_control') %}active{% endif %}">Panel de control</a>
+        <a href="{{ url_for('pedidos') }}" class="{% if request.path.startswith(url_for('pedidos')) %}active{% endif %}">Pedidos</a>
     </nav>
     {% with messages = get_flashed_messages(with_categories=True) %}
         {% if messages %}
