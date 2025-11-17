@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Subir Excel · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<h2 class="section-title">Importar datos desde Excel o CSV</h2>
+<p>Selecciona un archivo en formato Excel o CSV para simular su procesamiento. Esta demostración valida el formato y ofrece un resumen básico del archivo.</p>
+<form method="post" enctype="multipart/form-data" novalidate>
+    <div>
+        <label for="archivo">Archivo</label>
+        <input type="file" id="archivo" name="archivo" accept=".xlsx,.xls,.csv" required />
+    </div>
+    <input type="submit" value="Subir archivo" />
+</form>
+
+{% if resumen %}
+    <h3 class="section-title">Resumen del archivo</h3>
+    <table>
+        <tbody>
+            <tr>
+                <th>Nombre</th>
+                <td>{{ resumen.nombre }}</td>
+            </tr>
+            <tr>
+                <th>Tamaño aproximado</th>
+                <td>{{ resumen.tamano_kb }} KB</td>
+            </tr>
+            <tr>
+                <th>Estado</th>
+                <td>{% if resumen.procesado %}Procesado correctamente{% else %}Pendiente{% endif %}</td>
+            </tr>
+        </tbody>
+    </table>
+{% endif %}
+{% endblock %}
