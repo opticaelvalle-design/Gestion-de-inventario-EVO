@@ -53,6 +53,78 @@ inventory_items = [
     },
 ]
 
+purchase_orders = [
+    {
+        "id": 5001,
+        "cliente": "Electrodomésticos Atlas",
+        "fecha": datetime(2024, 3, 8, 9, 45),
+        "estado": "Parcial",
+        "notas": "Reposición urgente para la línea de montaje principal.",
+        "lineas": [
+            {
+                "codigo": "ABC123",
+                "descripcion": "Tornillo M4",
+                "cantidad_pedida": 150,
+                "cantidad_recibida": 80,
+                "cantidad_pendiente": 70,
+            },
+            {
+                "codigo": "LMN456",
+                "descripcion": "Destornillador plano",
+                "cantidad_pedida": 25,
+                "cantidad_recibida": 25,
+                "cantidad_pendiente": 0,
+            },
+        ],
+    },
+    {
+        "id": 5002,
+        "cliente": "Solaris Components",
+        "fecha": datetime(2024, 3, 15, 14, 10),
+        "estado": "Pendiente",
+        "notas": "Pedido programado para el nuevo centro logístico.",
+        "lineas": [
+            {
+                "codigo": "XYZ789",
+                "descripcion": "Arandela 12mm",
+                "cantidad_pedida": 200,
+                "cantidad_recibida": 0,
+                "cantidad_pendiente": 200,
+            },
+            {
+                "codigo": "OPQ222",
+                "descripcion": "Llave Allen 5mm",
+                "cantidad_pedida": 60,
+                "cantidad_recibida": 20,
+                "cantidad_pendiente": 40,
+            },
+        ],
+    },
+    {
+        "id": 5003,
+        "cliente": "Ingeniería Boreal",
+        "fecha": datetime(2024, 3, 20, 11, 5),
+        "estado": "Completado",
+        "notas": "Cierre de proyecto piloto con materiales sobrantes.",
+        "lineas": [
+            {
+                "codigo": "RST987",
+                "descripcion": "Taladro inalámbrico",
+                "cantidad_pedida": 10,
+                "cantidad_recibida": 10,
+                "cantidad_pendiente": 0,
+            },
+            {
+                "codigo": "UVW654",
+                "descripcion": "Guantes anti corte",
+                "cantidad_pedida": 80,
+                "cantidad_recibida": 80,
+                "cantidad_pendiente": 0,
+            },
+        ],
+    },
+]
+
 
 @app.route("/")
 def home():
@@ -199,6 +271,53 @@ def panel_control():
         ubicaciones_registradas=ubicaciones_registradas,
         bajo_stock=bajo_stock,
         ubicaciones_recientes=ubicaciones_recientes,
+    )
+
+
+@app.route("/pedidos")
+def pedidos():
+    total_lineas = sum(len(pedido["lineas"]) for pedido in purchase_orders)
+    total_unidades_pedidas = sum(
+        sum(linea["cantidad_pedida"] for linea in pedido["lineas"])
+        for pedido in purchase_orders
+    )
+    total_unidades_pendientes = sum(
+        sum(linea["cantidad_pendiente"] for linea in pedido["lineas"])
+        for pedido in purchase_orders
+    )
+    pedidos_abiertos = sum(
+        1
+        for pedido in purchase_orders
+        if any(linea["cantidad_pendiente"] > 0 for linea in pedido["lineas"])
+    )
+
+    return render_template(
+        "pedidos.html",
+        pedidos=purchase_orders,
+        total_lineas=total_lineas,
+        total_unidades_pedidas=total_unidades_pedidas,
+        total_unidades_pendientes=total_unidades_pendientes,
+        pedidos_abiertos=pedidos_abiertos,
+    )
+
+
+@app.route("/pedidos/<int:pedido_id>")
+def pedido_detalle(pedido_id: int):
+    pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido solicitado.", "error")
+        return redirect(url_for("pedidos"))
+
+    total_solicitado = sum(linea["cantidad_pedida"] for linea in pedido["lineas"])
+    total_recibido = sum(linea["cantidad_recibida"] for linea in pedido["lineas"])
+    total_pendiente = sum(linea["cantidad_pendiente"] for linea in pedido["lineas"])
+
+    return render_template(
+        "pedido_detalle.html",
+        pedido=pedido,
+        total_solicitado=total_solicitado,
+        total_recibido=total_recibido,
+        total_pendiente=total_pendiente,
     )
 
 
