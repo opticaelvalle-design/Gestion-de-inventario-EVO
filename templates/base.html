@@ -236,7 +236,7 @@
     <nav>
         <a href="{{ url_for('home') }}" class="{% if request.path == url_for('home') %}active{% endif %}">Inicio</a>
         <a href="{{ url_for('crear_gavetas') }}" class="{% if request.path == url_for('crear_gavetas') %}active{% endif %}">Crear gavetas, baldas, cajones</a>
-        <a href="{{ url_for('leer_codigos_de_barras') }}" class="{% if request.path == url_for('leer_codigos_de_barras') %}active{% endif %}">Leer códigos de barras</a>
+        <a href="{{ url_for('lectura_codigos') }}" class="{% if request.path == url_for('lectura_codigos') %}active{% endif %}">Lectura de códigos</a>
         <a href="{{ url_for('subir_excel') }}" class="{% if request.path == url_for('subir_excel') %}active{% endif %}">Subir Excel</a>
         <a href="{{ url_for('exportar_informes') }}" class="{% if request.path == url_for('exportar_informes') %}active{% endif %}">Exportar informes</a>
         <a href="{{ url_for('buscar_articulos') }}" class="{% if request.path == url_for('buscar_articulos') %}active{% endif %}">Buscar artículos</a>

@@ -155,24 +155,77 @@ def crear_gavetas():
     return render_template("crear_gavetas.html", ubicaciones=storage_locations)
 
 
-@app.route("/leer-codigos-de-barras", methods=["GET", "POST"])
-def leer_codigos_de_barras():
+def _lineas_pendientes():
+    lineas = []
+    for pedido in purchase_orders:
+        for linea in pedido["lineas"]:
+            if linea["cantidad_pendiente"] > 0:
+                lineas.append(
+                    {
+                        "pedido_id": pedido["id"],
+                        "cliente": pedido["cliente"],
+                        "codigo": linea["codigo"],
+                        "descripcion": linea["descripcion"],
+                        "cantidad_pedida": linea["cantidad_pedida"],
+                        "cantidad_recibida": linea["cantidad_recibida"],
+                        "cantidad_pendiente": linea["cantidad_pendiente"],
+                        "fecha": pedido["fecha"],
+                    }
+                )
+    return lineas
+
+
+def _buscar_linea_por_codigo(codigo: str):
+    codigo_lower = codigo.lower()
+    pedidos_ordenados = sorted(purchase_orders, key=lambda pedido: pedido["fecha"])
+    for pedido in pedidos_ordenados:
+        for linea in pedido["lineas"]:
+            if linea["codigo"].lower() == codigo_lower and linea["cantidad_pendiente"] > 0:
+                return pedido, linea
+    return None, None
+
+
+@app.route("/lectura-codigos", methods=["GET", "POST"])
+def lectura_codigos():
     resultado = None
+    codigo = ""
     if request.method == "POST":
         codigo = request.form.get("codigo", "").strip()
         if not codigo:
             flash("Introduce un código de barras.", "error")
         else:
-            resultado = next(
-                (item for item in inventory_items if item["codigo"].lower() == codigo.lower()),
-                None,
-            )
-            if resultado:
-                flash("Artículo encontrado.", "success")
+            pedido, linea = _buscar_linea_por_codigo(codigo)
+            if not linea:
+                flash("No hay unidades pendientes para ese código.", "warning")
             else:
-                flash("No se encontró ningún artículo con ese código.", "warning")
+                nueva_cantidad_recibida = min(linea["cantidad_recibida"] + 1, linea["cantidad_pedida"])
+                linea["cantidad_pendiente"] = max(linea["cantidad_pedida"] - nueva_cantidad_recibida, 0)
+                linea["cantidad_recibida"] = nueva_cantidad_recibida
+                completado = linea["cantidad_pendiente"] == 0
+                resultado = {
+                    "pedido_id": pedido["id"],
+                    "cliente": pedido["cliente"],
+                    "linea": linea,
+                    "completado": completado,
+                }
+                if completado:
+                    flash(
+                        f"Se completó la línea del código {linea['codigo']} en el pedido #{pedido['id']}.",
+                        "success",
+                    )
+                else:
+                    flash(
+                        f"Registrada 1 unidad para el pedido #{pedido['id']}. Pendientes: {linea['cantidad_pendiente']}.",
+                        "success",
+                    )
 
-    return render_template("leer_codigos.html", resultado=resultado)
+    lineas_pendientes = _lineas_pendientes()
+    return render_template(
+        "lectura_codigos.html",
+        codigo=codigo,
+        resultado=resultado,
+        lineas_pendientes=lineas_pendientes,
+    )
 
 
 @app.route("/subir-excel", methods=["GET", "POST"])

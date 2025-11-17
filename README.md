@@ -4,7 +4,7 @@ Aplicación de demostración construida con [Flask](https://flask.palletsproject
 
 ## Características
 - Registro de nuevas ubicaciones físicas (gavetas, baldas y cajones).
-- Consulta mediante código de barras para localizar artículos rápidamente.
+- Lectura de códigos de barras que descuenta unidades pendientes del primer pedido abierto.
 - Subida de ficheros Excel o CSV para procesamientos masivos simulados.
 - Exportación de informes CSV con el estado del stock.
 - Buscador de artículos por nombre o código.
@@ -50,7 +50,7 @@ Gestion-de-inventario-EVO/
 │   ├── crear_gavetas.html
 │   ├── exportar_informes.html
 │   ├── index.html
-│   ├── leer_codigos.html
+│   ├── lectura_codigos.html
 │   ├── mostrar_stock.html
 │   ├── panel_control.html
 │   ├── pedido_detalle.html
