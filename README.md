@@ -52,7 +52,10 @@ Gestion-de-inventario-EVO/
 │   ├── index.html
 │   ├── leer_codigos.html
 │   ├── mostrar_stock.html
-│   └── panel_control.html
+│   ├── panel_control.html
+│   ├── pedido_detalle.html
+│   ├── pedidos.html
+│   └── subir_excel.html
 └── README.md
 ```
 
@@ -61,3 +64,12 @@ Gestion-de-inventario-EVO/
 - Añadir autenticación de usuarios y control de permisos por rol.
 - Implementar subida real de ficheros Excel usando bibliotecas como `pandas` u `openpyxl`.
 - Integrar un sistema de notificaciones por correo o mensajería cuando se detecte bajo stock.
+
+## Pruebas
+Para comprobar rápidamente que la aplicación no tiene errores de sintaxis se puede ejecutar:
+
+```bash
+python -m compileall app.py
+```
+
+Esto genera los bytecode temporales en `__pycache__` y verifica que todo el código de Flask compila correctamente.
