@@ -50,7 +50,6 @@
             <tr>
                 <th>Nombre</th>
                 <th>Tipo</th>
-                <th>Capacidad</th>
                 <th>Fecha de alta</th>
             </tr>
         </thead>
@@ -59,7 +58,6 @@
                 <tr>
                     <td>{{ ubicacion.nombre }}</td>
                     <td>{{ ubicacion.tipo }}</td>
-                    <td>{{ ubicacion.capacidad }}</td>
                     <td>{{ ubicacion.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
                 </tr>
             {% endfor %}

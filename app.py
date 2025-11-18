@@ -24,16 +24,19 @@ storage_locations = [
     {
         "nombre": "Gaveta A1",
         "tipo": "Gaveta",
-        "capacidad": 200,
         "created_at": datetime(2024, 1, 10, 10, 30),
     },
     {
         "nombre": "Baldas Zona B",
         "tipo": "Baldas",
-        "capacidad": 120,
         "created_at": datetime(2024, 2, 5, 8, 15),
     },
 ]
+
+# Registro de asignaciones dinámicas entre líneas de pedidos y gavetas.
+# La clave es una tupla (pedido_id, codigo) en minúsculas para evitar duplicados.
+gaveta_asignaciones = {}
+gaveta_secuencia = 1
 
 inventory_items = [
     {
@@ -228,16 +231,14 @@ def crear_gavetas():
     if request.method == "POST":
         nombre = request.form.get("nombre", "").strip()
         tipo = request.form.get("tipo", "").strip()
-        capacidad = request.form.get("capacidad", type=int)
 
-        if not nombre or not tipo or capacidad is None:
-            flash("Todos los campos son obligatorios.", "error")
+        if not nombre or not tipo:
+            flash("El nombre y el tipo de la ubicación son obligatorios.", "error")
         else:
             storage_locations.append(
                 {
                     "nombre": nombre,
                     "tipo": tipo,
-                    "capacidad": capacidad,
                     "created_at": datetime.now(),
                 }
             )
@@ -296,6 +297,64 @@ def _lineas_pendientes():
     return lineas
 
 
+def _clave_gaveta(pedido_id: int, codigo: str):
+    return (pedido_id, codigo.lower())
+
+
+def _generar_nombre_gaveta() -> str:
+    global gaveta_secuencia
+    nombre = f"Gaveta #{gaveta_secuencia}"
+    gaveta_secuencia += 1
+    return nombre
+
+
+def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
+    clave = _clave_gaveta(pedido["id"], linea["codigo"])
+    asignacion = gaveta_asignaciones.get(clave)
+    if asignacion:
+        return clave, asignacion, False
+
+    nombre = _generar_nombre_gaveta()
+    nueva_gaveta = {
+        "nombre": nombre,
+        "tipo": "Gaveta",
+        "created_at": datetime.now(),
+    }
+    storage_locations.append(nueva_gaveta)
+    asignacion = {
+        "pedido_id": pedido["id"],
+        "cliente": pedido["cliente"],
+        "codigo": linea["codigo"],
+        "descripcion": linea.get("descripcion") or linea.get("nombre", linea["codigo"]),
+        "unidades": 0,
+        "gaveta": nueva_gaveta,
+    }
+    gaveta_asignaciones[clave] = asignacion
+    return clave, asignacion, True
+
+
+def _actualizar_unidades_gaveta(clave, delta: int):
+    asignacion = gaveta_asignaciones.get(clave)
+    if asignacion:
+        asignacion["unidades"] = max(asignacion["unidades"] + delta, 0)
+    return asignacion
+
+
+def _listar_gavetas_activas():
+    gavetas = [
+        {
+            "nombre": asignacion["gaveta"]["nombre"],
+            "pedido_id": asignacion["pedido_id"],
+            "cliente": asignacion["cliente"],
+            "codigo": asignacion["codigo"],
+            "descripcion": asignacion["descripcion"],
+            "unidades": asignacion["unidades"],
+        }
+        for asignacion in gaveta_asignaciones.values()
+    ]
+    return sorted(gavetas, key=lambda gaveta: (gaveta["pedido_id"], gaveta["codigo"].lower()))
+
+
 def _totales_albaran(albaran):
     total_unidades = sum(linea["cantidad"] for linea in albaran["lineas"])
     total_pvo = sum(linea["precio_pvo"] * linea["cantidad"] for linea in albaran["lineas"])
@@ -330,6 +389,11 @@ def _deshacer_ultima_lectura():
     linea["cantidad_pendiente"] = min(
         linea["cantidad_pendiente"] + 1, linea["cantidad_pedida"]
     )
+    gaveta_key = registro.get("gaveta_key")
+    asignacion = _actualizar_unidades_gaveta(gaveta_key, -1) if gaveta_key else None
+    if asignacion:
+        registro["gaveta"] = asignacion["gaveta"]["nombre"]
+        registro["unidades_gaveta"] = asignacion["unidades"]
     return registro
 
 
@@ -354,7 +418,11 @@ def lectura_codigos():
                     "linea": registro["linea"],
                     "completado": False,
                     "deshacer": True,
+                    "gaveta_creada": False,
                 }
+                if registro.get("gaveta"):
+                    resultado["gaveta"] = registro["gaveta"]
+                    resultado["unidades_gaveta"] = registro.get("unidades_gaveta", 0)
         else:
             codigo = request.form.get("codigo", "").strip()
             if not codigo:
@@ -372,17 +440,25 @@ def lectura_codigos():
                     )
                     linea["cantidad_recibida"] = nueva_cantidad_recibida
                     completado = linea["cantidad_pendiente"] == 0
+                    gaveta_key, asignacion, gaveta_creada = _obtener_o_crear_gaveta(
+                        pedido, linea
+                    )
+                    _actualizar_unidades_gaveta(gaveta_key, 1)
                     resultado = {
                         "pedido_id": pedido["id"],
                         "cliente": pedido["cliente"],
                         "linea": linea,
                         "completado": completado,
+                        "gaveta": asignacion["gaveta"]["nombre"],
+                        "unidades_gaveta": asignacion["unidades"],
+                        "gaveta_creada": gaveta_creada,
                     }
                     lecturas_historial.append(
                         {
                             "pedido_id": pedido["id"],
                             "cliente": pedido["cliente"],
                             "linea": linea,
+                            "gaveta_key": gaveta_key,
                         }
                     )
                     if completado:
@@ -397,11 +473,13 @@ def lectura_codigos():
                         )
 
     lineas_pendientes = _lineas_pendientes()
+    gavetas_activas = _listar_gavetas_activas()
     return render_template(
         "lectura_codigos.html",
         codigo=codigo,
         resultado=resultado,
         lineas_pendientes=lineas_pendientes,
+        gavetas_activas=gavetas_activas,
     )
 
 

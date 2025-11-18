@@ -18,10 +18,6 @@
             <option value="Otro">Otro</option>
         </select>
     </div>
-    <div>
-        <label for="capacidad">Capacidad (unidades)</label>
-        <input type="number" id="capacidad" name="capacidad" min="1" placeholder="Ej. 150" required />
-    </div>
     <input type="submit" value="Guardar ubicación" />
 </form>
 
@@ -32,7 +28,6 @@
             <tr>
                 <th>Nombre</th>
                 <th>Tipo</th>
-                <th>Capacidad</th>
                 <th>Fecha de alta</th>
                 <th></th>
             </tr>
@@ -42,7 +37,6 @@
                 <tr>
                     <td>{{ ubicacion.nombre }}</td>
                     <td>{{ ubicacion.tipo }}</td>
-                    <td>{{ ubicacion.capacidad }}</td>
                     <td>{{ ubicacion.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
                     <td>
                         <a class="button-link" href="{{ url_for('gaveta_detalle', nombre=ubicacion.nombre) }}">Ver contenido</a>

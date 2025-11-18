@@ -23,6 +23,18 @@
                 Código {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} /
                 {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}
             </p>
+            {% if resultado.gaveta %}
+                <p>
+                    Ubicación asignada:
+                    <strong>{{ resultado.gaveta }}</strong>
+                    · Unidades almacenadas en la gaveta: {{ resultado.unidades_gaveta }}
+                </p>
+                {% if resultado.gaveta_creada %}
+                    <p style="color: #0097e6; font-weight: 600;">
+                        Se creó una nueva gaveta para este pedido y código.
+                    </p>
+                {% endif %}
+            {% endif %}
             {% if resultado.deshacer %}
                 <p style="color: #c23616; font-weight: 600;">Se revirtió la última lectura.</p>
             {% elif resultado.completado %}
@@ -67,6 +79,40 @@
 {% else %}
     <div class="empty-state">
         <p>No hay unidades pendientes en ningún pedido.</p>
+    </div>
+{% endif %}
+
+<h2 class="section-title">Gavetas activas</h2>
+{% if gavetas_activas %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Gaveta</th>
+                    <th>Pedido</th>
+                    <th>Cliente</th>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th>Unidades almacenadas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for gaveta in gavetas_activas %}
+                    <tr>
+                        <td>{{ gaveta.nombre }}</td>
+                        <td>#{{ gaveta.pedido_id }}</td>
+                        <td>{{ gaveta.cliente }}</td>
+                        <td>{{ gaveta.codigo }}</td>
+                        <td>{{ gaveta.descripcion }}</td>
+                        <td>{{ gaveta.unidades }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>Todavía no se han asignado gavetas a los pedidos.</p>
     </div>
 {% endif %}
 {% endblock %}
