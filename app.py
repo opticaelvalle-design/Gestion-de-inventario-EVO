@@ -38,6 +38,10 @@ storage_locations = [
 gaveta_asignaciones = {}
 gaveta_secuencia = 1
 
+# Registro de asignaciones dinámicas entre líneas de pedidos y gavetas.
+# La clave es una tupla (pedido_id, codigo) en minúsculas para evitar duplicados.
+gaveta_asignaciones = {}
+
 inventory_items = [
     {
         "codigo": "ABC123",
