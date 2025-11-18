@@ -81,6 +81,40 @@
         <p>No hay unidades pendientes en ningún pedido.</p>
     </div>
 {% endif %}
+
+<h2 class="section-title">Gavetas activas</h2>
+{% if gavetas_activas %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Gaveta</th>
+                    <th>Pedido</th>
+                    <th>Cliente</th>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th>Unidades almacenadas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for gaveta in gavetas_activas %}
+                    <tr>
+                        <td>{{ gaveta.nombre }}</td>
+                        <td>#{{ gaveta.pedido_id }}</td>
+                        <td>{{ gaveta.cliente }}</td>
+                        <td>{{ gaveta.codigo }}</td>
+                        <td>{{ gaveta.descripcion }}</td>
+                        <td>{{ gaveta.unidades }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>Todavía no se han asignado gavetas a los pedidos.</p>
+    </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_scripts %}

@@ -232,16 +232,14 @@ def crear_gavetas():
     if request.method == "POST":
         nombre = request.form.get("nombre", "").strip()
         tipo = request.form.get("tipo", "").strip()
-        capacidad = request.form.get("capacidad", type=int)
 
-        if not nombre or not tipo or capacidad is None:
-            flash("Todos los campos son obligatorios.", "error")
+        if not nombre or not tipo:
+            flash("El nombre y el tipo de la ubicación son obligatorios.", "error")
         else:
             storage_locations.append(
                 {
                     "nombre": nombre,
                     "tipo": tipo,
-                    "capacidad": capacidad,
                     "created_at": datetime.now(),
                 }
             )
@@ -464,11 +462,13 @@ def lectura_codigos():
                         )
 
     lineas_pendientes = _lineas_pendientes()
+    gavetas_activas = _listar_gavetas_activas()
     return render_template(
         "lectura_codigos.html",
         codigo=codigo,
         resultado=resultado,
         lineas_pendientes=lineas_pendientes,
+        gavetas_activas=gavetas_activas,
     )
 
 
