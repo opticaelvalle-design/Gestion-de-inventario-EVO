@@ -35,6 +35,10 @@ storage_locations = [
     },
 ]
 
+# Registro de asignaciones dinámicas entre líneas de pedidos y gavetas.
+# La clave es una tupla (pedido_id, codigo) en minúsculas para evitar duplicados.
+gaveta_asignaciones = {}
+
 inventory_items = [
     {
         "codigo": "ABC123",
@@ -296,6 +300,52 @@ def _lineas_pendientes():
     return lineas
 
 
+def _clave_gaveta(pedido_id: int, codigo: str):
+    return (pedido_id, codigo.lower())
+
+
+def _generar_nombre_gaveta(pedido_id: int, codigo: str) -> str:
+    base = f"Gaveta Pedido {pedido_id}-{codigo}"
+    nombre = base
+    sufijo = 2
+    nombres_existentes = {ubicacion["nombre"].lower() for ubicacion in storage_locations}
+    while nombre.lower() in nombres_existentes:
+        nombre = f"{base} ({sufijo})"
+        sufijo += 1
+    return nombre
+
+
+def _obtener_o_crear_gaveta(pedido_id: int, linea: dict):
+    clave = _clave_gaveta(pedido_id, linea["codigo"])
+    asignacion = gaveta_asignaciones.get(clave)
+    if asignacion:
+        return clave, asignacion, False
+
+    nombre = _generar_nombre_gaveta(pedido_id, linea["codigo"])
+    nueva_gaveta = {
+        "nombre": nombre,
+        "tipo": "Gaveta",
+        "capacidad": 200,
+        "created_at": datetime.now(),
+    }
+    storage_locations.append(nueva_gaveta)
+    asignacion = {
+        "gaveta": nueva_gaveta,
+        "codigo": linea["codigo"],
+        "descripcion": linea.get("descripcion") or linea.get("nombre", linea["codigo"]),
+        "unidades": 0,
+    }
+    gaveta_asignaciones[clave] = asignacion
+    return clave, asignacion, True
+
+
+def _actualizar_unidades_gaveta(clave, delta: int):
+    asignacion = gaveta_asignaciones.get(clave)
+    if asignacion:
+        asignacion["unidades"] = max(asignacion["unidades"] + delta, 0)
+    return asignacion
+
+
 def _totales_albaran(albaran):
     total_unidades = sum(linea["cantidad"] for linea in albaran["lineas"])
     total_pvo = sum(linea["precio_pvo"] * linea["cantidad"] for linea in albaran["lineas"])
@@ -330,6 +380,11 @@ def _deshacer_ultima_lectura():
     linea["cantidad_pendiente"] = min(
         linea["cantidad_pendiente"] + 1, linea["cantidad_pedida"]
     )
+    gaveta_key = registro.get("gaveta_key")
+    asignacion = _actualizar_unidades_gaveta(gaveta_key, -1) if gaveta_key else None
+    if asignacion:
+        registro["gaveta"] = asignacion["gaveta"]["nombre"]
+        registro["unidades_gaveta"] = asignacion["unidades"]
     return registro
 
 
@@ -354,7 +409,11 @@ def lectura_codigos():
                     "linea": registro["linea"],
                     "completado": False,
                     "deshacer": True,
+                    "gaveta_creada": False,
                 }
+                if registro.get("gaveta"):
+                    resultado["gaveta"] = registro["gaveta"]
+                    resultado["unidades_gaveta"] = registro.get("unidades_gaveta", 0)
         else:
             codigo = request.form.get("codigo", "").strip()
             if not codigo:
@@ -372,17 +431,25 @@ def lectura_codigos():
                     )
                     linea["cantidad_recibida"] = nueva_cantidad_recibida
                     completado = linea["cantidad_pendiente"] == 0
+                    gaveta_key, asignacion, gaveta_creada = _obtener_o_crear_gaveta(
+                        pedido["id"], linea
+                    )
+                    _actualizar_unidades_gaveta(gaveta_key, 1)
                     resultado = {
                         "pedido_id": pedido["id"],
                         "cliente": pedido["cliente"],
                         "linea": linea,
                         "completado": completado,
+                        "gaveta": asignacion["gaveta"]["nombre"],
+                        "unidades_gaveta": asignacion["unidades"],
+                        "gaveta_creada": gaveta_creada,
                     }
                     lecturas_historial.append(
                         {
                             "pedido_id": pedido["id"],
                             "cliente": pedido["cliente"],
                             "linea": linea,
+                            "gaveta_key": gaveta_key,
                         }
                     )
                     if completado:
