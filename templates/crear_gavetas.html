@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Crear gavetas · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<h2 class="section-title">Registrar nuevas ubicaciones</h2>
+<p>Utiliza el formulario para añadir gavetas, baldas o cajones disponibles en tu almacén. Estas ubicaciones aparecerán en las vistas de stock y control.</p>
+<form method="post" novalidate>
+    <div>
+        <label for="nombre">Nombre o identificador</label>
+        <input type="text" id="nombre" name="nombre" placeholder="Ej. Gaveta C3" required />
+    </div>
+    <div>
+        <label for="tipo">Tipo de contenedor</label>
+        <select id="tipo" name="tipo" required>
+            <option value="">Selecciona una opción</option>
+            <option value="Gaveta">Gaveta</option>
+            <option value="Baldas">Baldas</option>
+            <option value="Cajón">Cajón</option>
+            <option value="Otro">Otro</option>
+        </select>
+    </div>
+    <div>
+        <label for="capacidad">Capacidad (unidades)</label>
+        <input type="number" id="capacidad" name="capacidad" min="1" placeholder="Ej. 150" required />
+    </div>
+    <input type="submit" value="Guardar ubicación" />
+</form>
+
+<h3 class="section-title">Ubicaciones registradas</h3>
+{% if ubicaciones %}
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Capacidad</th>
+                <th>Fecha de alta</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ubicacion in ubicaciones %}
+                <tr>
+                    <td>{{ ubicacion.nombre }}</td>
+                    <td>{{ ubicacion.tipo }}</td>
+                    <td>{{ ubicacion.capacidad }}</td>
+                    <td>{{ ubicacion.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td>
+                        <a class="button-link" href="{{ url_for('gaveta_detalle', nombre=ubicacion.nombre) }}">Ver contenido</a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="empty-state">Todavía no hay ubicaciones registradas.</div>
+{% endif %}
+{% endblock %}

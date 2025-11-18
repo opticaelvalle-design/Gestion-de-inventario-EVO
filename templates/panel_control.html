@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Panel de control · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<h2 class="section-title">Indicadores generales</h2>
+<div class="stats-grid">
+    <div class="stat-card">
+        <span>Artículos únicos</span>
+        <strong>{{ total_articulos }}</strong>
+    </div>
+    <div class="stat-card">
+        <span>Unidades totales</span>
+        <strong>{{ total_unidades }}</strong>
+    </div>
+    <div class="stat-card">
+        <span>Ubicaciones registradas</span>
+        <strong>{{ ubicaciones_registradas }}</strong>
+    </div>
+</div>
+
+<h3 class="section-title">Alertas de stock bajo</h3>
+{% if bajo_stock %}
+    <table>
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Cantidad</th>
+                <th>Ubicación</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in bajo_stock %}
+                <tr>
+                    <td>{{ item.codigo }}</td>
+                    <td>{{ item.nombre }}</td>
+                    <td>{{ item.cantidad }}</td>
+                    <td>{{ item.ubicacion }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="empty-state">No hay alertas de stock bajo en este momento.</div>
+{% endif %}
+
+<h3 class="section-title">Últimas ubicaciones creadas</h3>
+{% if ubicaciones_recientes %}
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Capacidad</th>
+                <th>Fecha de alta</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ubicacion in ubicaciones_recientes %}
+                <tr>
+                    <td>{{ ubicacion.nombre }}</td>
+                    <td>{{ ubicacion.tipo }}</td>
+                    <td>{{ ubicacion.capacidad }}</td>
+                    <td>{{ ubicacion.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="empty-state">Todavía no se han registrado ubicaciones.</div>
+{% endif %}
+{% endblock %}

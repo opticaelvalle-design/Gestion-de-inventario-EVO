@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Pedido #{{ pedido.id }} · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<a class="button-link" href="{{ url_for('pedidos') }}">← Volver al listado</a>
+
+<section>
+    <h2 class="section-title">Pedido #{{ pedido.id }}</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span>Cliente</span>
+            <strong>{{ pedido.cliente }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Fecha</span>
+            <strong>{{ pedido.fecha.strftime('%d/%m/%Y %H:%M') }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Estado</span>
+            <strong>{{ pedido.estado }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Unidades solicitadas</span>
+            <strong>{{ total_solicitado }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Unidades recibidas</span>
+            <strong>{{ total_recibido }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Unidades pendientes</span>
+            <strong>{{ total_pendiente }}</strong>
+        </div>
+    </div>
+    {% if pedido.notas %}
+    <p><strong>Notas:</strong> {{ pedido.notas }}</p>
+    {% endif %}
+</section>
+
+<section>
+    <h3 class="section-title">Líneas del pedido</h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>PEDIDO</th>
+                    <th>CLIENTE</th>
+                    <th>CODIGO</th>
+                    <th>DESCRIPCIÓN</th>
+                    <th>CANTIDAD PEDIDA</th>
+                    <th>CANTIDAD RECIBIDA</th>
+                    <th>CANTIDAD PENDIENTE</th>
+                    <th>FECHA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for linea in pedido.lineas %}
+                <tr>
+                    <td>#{{ pedido.id }}</td>
+                    <td>{{ pedido.cliente }}</td>
+                    <td>{{ linea.codigo }}</td>
+                    <td>{{ linea.descripcion }}</td>
+                    <td>{{ linea.cantidad_pedida }}</td>
+                    <td>{{ linea.cantidad_recibida }}</td>
+                    <td>{{ linea.cantidad_pendiente }}</td>
+                    <td>{{ pedido.fecha.strftime('%d/%m/%Y') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

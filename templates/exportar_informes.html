@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Exportar informes · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<h2 class="section-title">Generar informes</h2>
+<p>Descarga un informe actualizado con los datos de stock actuales. Puedes compartirlo con otros departamentos o utilizarlo para auditorías.</p>
+<div class="stats-grid">
+    <div class="stat-card">
+        <span>Referencias distintas</span>
+        <strong>{{ total_items }}</strong>
+    </div>
+    <div class="stat-card">
+        <span>Unidades totales en stock</span>
+        <strong>{{ total_unidades }}</strong>
+    </div>
+</div>
+<p>
+    <a class="button-link" href="{{ url_for('descargar_informe') }}">Descargar informe en CSV</a>
+</p>
+{% endblock %}

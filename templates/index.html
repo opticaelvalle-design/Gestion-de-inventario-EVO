@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Inicio · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<section class="menu-grid">
+    <a class="card" href="{{ url_for('crear_gavetas') }}">
+        <h2>Crear gavetas, baldas y cajones</h2>
+        <p>Registra nuevas ubicaciones físicas en el almacén para mantener organizado el inventario.</p>
+    </a>
+    <a class="card" href="{{ url_for('lectura_codigos') }}">
+        <h2>Lectura de códigos</h2>
+        <p>Escanea cada unidad y descuenta automáticamente el pendiente del pedido correspondiente.</p>
+    </a>
+    <a class="card" href="{{ url_for('subir_excel') }}">
+        <h2>Subir Excel</h2>
+        <p>Importa movimientos o cargas masivas desde tus hojas de cálculo en formato Excel o CSV.</p>
+    </a>
+    <a class="card" href="{{ url_for('exportar_informes') }}">
+        <h2>Exportar informes</h2>
+        <p>Genera informes en formato CSV con el estado actual del stock y compártelos con tu equipo.</p>
+    </a>
+    <a class="card" href="{{ url_for('buscar_articulos') }}">
+        <h2>Buscar artículos</h2>
+        <p>Encuentra cualquier referencia por nombre o código y revisa su disponibilidad en segundos.</p>
+    </a>
+    <a class="card" href="{{ url_for('mostrar_stock') }}">
+        <h2>Mostrar stock</h2>
+        <p>Consulta un resumen detallado de todas las existencias y sus ubicaciones actuales.</p>
+    </a>
+    <a class="card" href="{{ url_for('panel_control') }}">
+        <h2>Panel de control</h2>
+        <p>Supervisa indicadores clave y mantente al tanto de movimientos recientes en tus almacenes.</p>
+    </a>
+    <a class="card" href="{{ url_for('albaranes') }}">
+        <h2>Albaranes de entrada</h2>
+        <p>Registra recepciones, consulta importes y accede al detalle de cada documento de entrada.</p>
+    </a>
+    <a class="card" href="{{ url_for('pedidos') }}">
+        <h2>Pedidos</h2>
+        <p>Revisa qué pedidos siguen abiertos, sus cantidades pendientes y accede al detalle de cada referencia.</p>
+    </a>
+    <a class="card" href="{{ url_for('static', filename='inventario_app.zip') }}" download>
+        <h2>Descargar ZIP</h2>
+        <p>Obtén todo el código de la aplicación en un único archivo comprimido listo para compartir o archivar.</p>
+    </a>
+</section>
+{% endblock %}

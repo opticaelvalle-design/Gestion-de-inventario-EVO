@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ ubicacion.nombre }} · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<a href="{{ url_for('crear_gavetas') }}" class="button-link" style="margin-bottom: 1rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+    ← Volver a gavetas
+</a>
+<section class="card" style="gap: 1rem;">
+    <div>
+        <h2>{{ ubicacion.nombre }}</h2>
+        <p>{{ ubicacion.tipo }} · Capacidad {{ ubicacion.capacidad }} unidades.</p>
+        <p>Dada de alta el {{ ubicacion.created_at.strftime('%d/%m/%Y %H:%M') }}.</p>
+    </div>
+    <div class="stat-card" style="width: 100%;">
+        <span>Unidades registradas en esta ubicación</span>
+        <strong>{{ total_unidades }}</strong>
+    </div>
+</section>
+
+<h3 class="section-title">Contenido</h3>
+{% if articulos %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Cantidad</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for articulo in articulos %}
+            <tr>
+                <td>{{ articulo.codigo }}</td>
+                <td>{{ articulo.nombre }}</td>
+                <td>{{ articulo.cantidad }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">No hay artículos registrados en esta ubicación.</div>
+{% endif %}
+{% endblock %}

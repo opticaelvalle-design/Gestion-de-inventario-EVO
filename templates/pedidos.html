@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Pedidos · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<section>
+    <h2 class="section-title">Pedidos de compra</h2>
+    <p>Consulta el estado de cada pedido registrado, sus cantidades solicitadas y lo que queda pendiente por recibir.</p>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span>Pedidos registrados</span>
+            <strong>{{ pedidos|length }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Pedidos con unidades pendientes</span>
+            <strong>{{ pedidos_abiertos }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Líneas gestionadas</span>
+            <strong>{{ total_lineas }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Unidades pendientes</span>
+            <strong>{{ total_unidades_pendientes }}</strong>
+        </div>
+    </div>
+</section>
+
+<section class="card" style="margin-top: 2rem;">
+    <div>
+        <h3>Crear nuevo pedido</h3>
+        <p>Registra pedidos sencillos introduciendo el cliente y la primera línea del pedido.</p>
+    </div>
+    <form method="post" class="form-grid" style="gap: 1rem;">
+        <div>
+            <label for="cliente">Cliente</label>
+            <input type="text" id="cliente" name="cliente" placeholder="Ej. Componentes Atlas" required />
+        </div>
+        <div>
+            <label for="codigo">Código</label>
+            <input type="text" id="codigo" name="codigo" placeholder="Ej. ABC123" required />
+        </div>
+        <div>
+            <label for="descripcion">Descripción</label>
+            <input type="text" id="descripcion" name="descripcion" placeholder="Producto" required />
+        </div>
+        <div>
+            <label for="cantidad">Cantidad pedida</label>
+            <input type="number" id="cantidad" name="cantidad" min="1" placeholder="Ej. 50" required />
+        </div>
+        <div style="align-self: flex-end;">
+            <button type="submit">Añadir pedido</button>
+        </div>
+    </form>
+</section>
+
+<section>
+    <h3 class="section-title">Detalle rápido</h3>
+    {% if pedidos %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Pedido</th>
+                    <th>Cliente</th>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                    <th>Líneas</th>
+                    <th>Unidades pedidas</th>
+                    <th>Unidades pendientes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pedido in pedidos %}
+                <tr>
+                    <td>#{{ pedido.id }}</td>
+                    <td>{{ pedido.cliente }}</td>
+                    <td>{{ pedido.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td>{{ pedido.estado }}</td>
+                    <td>{{ pedido.lineas|length }}</td>
+                    <td>{{ pedido.lineas | sum(attribute='cantidad_pedida') }}</td>
+                    <td>{{ pedido.lineas | sum(attribute='cantidad_pendiente') }}</td>
+                    <td>
+                        <a class="button-link" href="{{ url_for('pedido_detalle', pedido_id=pedido.id) }}">Ver pedido</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty-state">Aún no hay pedidos registrados.</p>
+    {% endif %}
+</section>
+{% endblock %}

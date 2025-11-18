@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Lectura de códigos · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<section class="card" style="gap: 1.25rem;">
+    <div>
+        <h2>Lectura de códigos</h2>
+        <p>Escanea o introduce manualmente un código para registrar la recepción unidad a unidad.</p>
+    </div>
+    <form method="post" style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <label for="codigo">Código de barras</label>
+        <input type="text" name="codigo" id="codigo" value="{{ codigo }}" placeholder="Ej. ABC123" autofocus autocomplete="off" />
+        <button type="submit">Registrar recepción</button>
+    </form>
+    <form method="post" style="align-self: flex-start;">
+        <input type="hidden" name="accion" value="deshacer" />
+        <button type="submit" style="background-color: #c23616; color: #fff; border-color: #c23616;">Deshacer última lectura</button>
+    </form>
+    {% if resultado %}
+        <div class="stat-card">
+            <span>Última lectura</span>
+            <strong>Pedido #{{ resultado.pedido_id }} · {{ resultado.cliente }}</strong>
+            <p>
+                Código {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} /
+                {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}
+            </p>
+            {% if resultado.deshacer %}
+                <p style="color: #c23616; font-weight: 600;">Se revirtió la última lectura.</p>
+            {% elif resultado.completado %}
+                <p style="color: #009432; font-weight: 600;">¡Línea completada!</p>
+            {% endif %}
+        </div>
+    {% endif %}
+</section>
+
+<h2 class="section-title">Líneas con unidades pendientes</h2>
+{% if lineas_pendientes %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Pedido</th>
+                    <th>Cliente</th>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th>Pedidas</th>
+                    <th>Recibidas</th>
+                    <th>Pendientes</th>
+                    <th>Fecha</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for linea in lineas_pendientes %}
+                    <tr>
+                        <td><a href="{{ url_for('pedido_detalle', pedido_id=linea.pedido_id) }}" class="button-link" style="padding: 0.35rem 0.65rem; font-size: 0.85rem;">#{{ linea.pedido_id }}</a></td>
+                        <td>{{ linea.cliente }}</td>
+                        <td>{{ linea.codigo }}</td>
+                        <td>{{ linea.descripcion }}</td>
+                        <td>{{ linea.cantidad_pedida }}</td>
+                        <td>{{ linea.cantidad_recibida }}</td>
+                        <td>{{ linea.cantidad_pendiente }}</td>
+                        <td>{{ linea.fecha.strftime('%d/%m/%Y') }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>No hay unidades pendientes en ningún pedido.</p>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const codigoInput = document.getElementById('codigo');
+    if (codigoInput) {
+        codigoInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                codigoInput.form.submit();
+            }
+        });
+    }
+</script>
+{% endblock %}
