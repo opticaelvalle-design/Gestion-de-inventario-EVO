@@ -13,10 +13,43 @@
     <div class="stat-card" style="width: 100%;">
         <span>Unidades registradas en esta ubicación</span>
         <strong>{{ total_unidades }}</strong>
+        <p style="margin: 0; color: #57606f; font-size: 0.95rem;">
+            Inventario histórico: {{ total_unidades_inventario }} · Asignaciones activas: {{ total_unidades_asignadas }}
+        </p>
     </div>
 </section>
 
-<h3 class="section-title">Contenido</h3>
+<h3 class="section-title">Asignaciones activas por pedido</h3>
+{% if asignaciones_gaveta %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Pedido</th>
+                <th>Cliente</th>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Unidades registradas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for asignacion in asignaciones_gaveta %}
+            <tr>
+                <td>#{{ asignacion.pedido_id }}</td>
+                <td>{{ asignacion.cliente }}</td>
+                <td>{{ asignacion.codigo }}</td>
+                <td>{{ asignacion.descripcion }}</td>
+                <td>{{ asignacion.unidades }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">Esta gaveta todavía no tiene asignaciones creadas desde la lectura de códigos.</div>
+{% endif %}
+
+<h3 class="section-title">Inventario registrado en esta ubicación</h3>
 {% if articulos %}
 <div class="table-wrapper">
     <table>
@@ -39,6 +72,6 @@
     </table>
 </div>
 {% else %}
-<div class="empty-state">No hay artículos registrados en esta ubicación.</div>
+<div class="empty-state">No hay movimientos previos registrados manualmente en esta ubicación.</div>
 {% endif %}
 {% endblock %}
