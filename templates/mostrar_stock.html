@@ -2,7 +2,7 @@
 {% block title %}Mostrar stock · Gestión de Inventario EVO{% endblock %}
 {% block content %}
 <h2 class="section-title">Estado del inventario</h2>
-<p>Consulta la lista completa de artículos registrados y actualiza sus datos directamente desde esta vista.</p>
+<p>Consulta la lista completa de artículos registrados y accede a su detalle para ver cómo se reparten por ubicación.</p>
 {% if inventario %}
     <div class="table-wrapper">
         <table>
@@ -10,9 +10,9 @@
                 <tr>
                     <th style="min-width: 120px;">Código</th>
                     <th>Nombre</th>
-                    <th style="width: 130px;">Cantidad</th>
-                    <th>Ubicación</th>
-                    <th style="width: 220px;">Editar stock</th>
+                    <th style="width: 130px;">Total</th>
+                    <th>Ubicaciones</th>
+                    <th style="width: 150px;">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -20,15 +20,14 @@
                     <tr>
                         <td>{{ item.codigo }}</td>
                         <td>{{ item.nombre }}</td>
-                        <td>{{ item.cantidad }}</td>
-                        <td>{{ item.ubicacion }}</td>
+                        <td>{{ item.total_cantidad }}</td>
                         <td>
-                            <form method="post" action="{{ url_for('actualizar_inventario', codigo=item.codigo) }}" class="inline-form">
-                                <input type="text" name="nombre" value="{{ item.nombre }}" aria-label="Nombre" />
-                                <input type="number" name="cantidad" value="{{ item.cantidad }}" min="0" aria-label="Cantidad" />
-                                <input type="text" name="ubicacion" value="{{ item.ubicacion }}" aria-label="Ubicación" />
-                                <button type="submit" class="button-link">Guardar</button>
-                            </form>
+                            {% for ubicacion in item.ubicaciones %}
+                                <div>{{ ubicacion.ubicacion }}: {{ ubicacion.cantidad }}</div>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            <a class="button-link" href="{{ url_for('inventario_detalle', codigo=item.codigo) }}">Ver detalle</a>
                         </td>
                     </tr>
                 {% endfor %}
