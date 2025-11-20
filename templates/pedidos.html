@@ -80,7 +80,12 @@
                     <td>{{ pedido.lineas | sum(attribute='cantidad_pedida') }}</td>
                     <td>{{ pedido.lineas | sum(attribute='cantidad_pendiente') }}</td>
                     <td>
-                        <a class="button-link" href="{{ url_for('pedido_detalle', pedido_id=pedido.id) }}">Ver pedido</a>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <a class="button-link" href="{{ url_for('pedido_detalle', pedido_id=pedido.id) }}">Ver pedido</a>
+                            <form method="post" action="{{ url_for('eliminar_pedido', pedido_id=pedido.id) }}" onsubmit="return confirm('¿Seguro que quieres eliminar el pedido #{{ pedido.id }}?');">
+                                <button type="submit" class="button-link" style="background-color: #b3261e; color: white; border: none; padding: 0.4rem 0.65rem; border-radius: 6px; cursor: pointer;">Eliminar</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
