@@ -1,6 +1,8 @@
 from datetime import datetime
 import csv
 import io
+import sqlite3
+from pathlib import Path
 
 from flask import (
     Flask,
@@ -12,6 +14,8 @@ from flask import (
     url_for,
 )
 
+DB_PATH = Path(__file__).with_name("inventario.db")
+
 
 app = Flask(__name__)
 app.secret_key = "cambia-esta-clave"  # Necesaria para mostrar mensajes flash
@@ -19,8 +23,8 @@ app.secret_key = "cambia-esta-clave"  # Necesaria para mostrar mensajes flash
 # Historial en memoria para permitir deshacer la última lectura de código
 lecturas_historial = []
 
-# Datos simulados para la demostración de funcionalidades
-storage_locations = [
+# Datos iniciales para la demostración de funcionalidades
+INITIAL_STORAGE_LOCATIONS = [
     {
         "nombre": "Gaveta A1",
         "tipo": "Gaveta",
@@ -33,16 +37,7 @@ storage_locations = [
     },
 ]
 
-# Registro de asignaciones dinámicas entre líneas de pedidos y gavetas.
-# La clave es una tupla (pedido_id, codigo) en minúsculas para evitar duplicados.
-gaveta_asignaciones = {}
-gaveta_secuencia = 1
-
-# Registro de asignaciones dinámicas entre líneas de pedidos y gavetas.
-# La clave es una tupla (pedido_id, codigo) en minúsculas para evitar duplicados.
-gaveta_asignaciones = {}
-
-inventory_items = [
+INITIAL_INVENTORY = [
     {
         "codigo": "ABC123",
         "nombre": "Tornillo M4",
@@ -63,7 +58,7 @@ inventory_items = [
     },
 ]
 
-purchase_orders = [
+INITIAL_PURCHASE_ORDERS = [
     {
         "id": 5001,
         "cliente": "Electrodomésticos Atlas",
@@ -135,7 +130,7 @@ purchase_orders = [
     },
 ]
 
-delivery_notes = [
+INITIAL_DELIVERY_NOTES = [
     {
         "id": 7001,
         "numero": "ALB-2024-001",
@@ -224,7 +219,357 @@ delivery_notes = [
     },
 ]
 
+storage_locations = []
+inventory_items = []
+purchase_orders = []
+delivery_notes = []
+gaveta_asignaciones = {}
+gaveta_secuencia = 1
 active_delivery_note_id = None
+
+
+def _persistir_linea_pedido(pedido_id: int, linea: dict):
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE purchase_order_lines
+            SET cantidad_pedida = ?, cantidad_recibida = ?, cantidad_pendiente = ?, descripcion = ?
+            WHERE pedido_id = ? AND lower(codigo) = ?
+            """,
+            (
+                linea["cantidad_pedida"],
+                linea["cantidad_recibida"],
+                linea["cantidad_pendiente"],
+                linea["descripcion"],
+                pedido_id,
+                linea["codigo"].lower(),
+            ),
+        )
+
+
+def _insertar_linea_pedido(pedido_id: int, linea: dict):
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO purchase_order_lines (
+                pedido_id, codigo, descripcion, cantidad_pedida, cantidad_recibida, cantidad_pendiente
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                pedido_id,
+                linea["codigo"],
+                linea["descripcion"],
+                linea["cantidad_pedida"],
+                linea.get("cantidad_recibida", 0),
+                linea.get("cantidad_pendiente", linea["cantidad_pedida"]),
+            ),
+        )
+
+
+def get_connection():
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def _as_datetime(value: str):
+    return datetime.fromisoformat(value) if isinstance(value, str) else value
+
+
+def _init_db_schema():
+    with get_connection() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS storage_locations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT UNIQUE NOT NULL,
+                tipo TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS inventory_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT UNIQUE NOT NULL,
+                nombre TEXT NOT NULL,
+                cantidad INTEGER NOT NULL,
+                ubicacion TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS purchase_orders (
+                id INTEGER PRIMARY KEY,
+                cliente TEXT NOT NULL,
+                fecha TEXT NOT NULL,
+                estado TEXT NOT NULL,
+                notas TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS purchase_order_lines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pedido_id INTEGER NOT NULL,
+                codigo TEXT NOT NULL,
+                descripcion TEXT NOT NULL,
+                cantidad_pedida INTEGER NOT NULL,
+                cantidad_recibida INTEGER NOT NULL,
+                cantidad_pendiente INTEGER NOT NULL,
+                FOREIGN KEY (pedido_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS delivery_notes (
+                id INTEGER PRIMARY KEY,
+                numero TEXT NOT NULL,
+                fecha TEXT NOT NULL,
+                proveedor TEXT NOT NULL,
+                fabrica TEXT NOT NULL,
+                precio_transporte REAL NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS delivery_note_lines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                albaran_id INTEGER NOT NULL,
+                codigo TEXT NOT NULL,
+                nombre TEXT NOT NULL,
+                tipo TEXT NOT NULL,
+                precio_pvo REAL NOT NULL,
+                precio_pvp REAL NOT NULL,
+                cantidad INTEGER NOT NULL,
+                FOREIGN KEY (albaran_id) REFERENCES delivery_notes(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS gaveta_asignaciones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pedido_id INTEGER NOT NULL,
+                codigo TEXT NOT NULL,
+                cliente TEXT NOT NULL,
+                descripcion TEXT NOT NULL,
+                unidades INTEGER NOT NULL,
+                gaveta_nombre TEXT NOT NULL,
+                gaveta_tipo TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            """
+        )
+
+
+def _seed_if_empty():
+    with get_connection() as conn:
+        cursor = conn.execute("SELECT COUNT(*) FROM storage_locations")
+        if cursor.fetchone()[0] == 0:
+            conn.executemany(
+                "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
+                [
+                    (item["nombre"], item["tipo"], item["created_at"].isoformat())
+                    for item in INITIAL_STORAGE_LOCATIONS
+                ],
+            )
+
+        cursor = conn.execute("SELECT COUNT(*) FROM inventory_items")
+        if cursor.fetchone()[0] == 0:
+            conn.executemany(
+                "INSERT INTO inventory_items (codigo, nombre, cantidad, ubicacion) VALUES (?, ?, ?, ?)",
+                [
+                    (
+                        item["codigo"],
+                        item["nombre"],
+                        item["cantidad"],
+                        item["ubicacion"],
+                    )
+                    for item in INITIAL_INVENTORY
+                ],
+            )
+
+        cursor = conn.execute("SELECT COUNT(*) FROM purchase_orders")
+        if cursor.fetchone()[0] == 0:
+            for pedido in INITIAL_PURCHASE_ORDERS:
+                conn.execute(
+                    "INSERT INTO purchase_orders (id, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?)",
+                    (
+                        pedido["id"],
+                        pedido["cliente"],
+                        pedido["fecha"].isoformat(),
+                        pedido["estado"],
+                        pedido["notas"],
+                    ),
+                )
+                conn.executemany(
+                    """
+                    INSERT INTO purchase_order_lines (
+                        pedido_id, codigo, descripcion, cantidad_pedida, cantidad_recibida, cantidad_pendiente
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            pedido["id"],
+                            linea["codigo"],
+                            linea["descripcion"],
+                            linea["cantidad_pedida"],
+                            linea["cantidad_recibida"],
+                            linea["cantidad_pendiente"],
+                        )
+                        for linea in pedido["lineas"]
+                    ],
+                )
+
+        cursor = conn.execute("SELECT COUNT(*) FROM delivery_notes")
+        if cursor.fetchone()[0] == 0:
+            for albaran in INITIAL_DELIVERY_NOTES:
+                conn.execute(
+                    """
+                    INSERT INTO delivery_notes (id, numero, fecha, proveedor, fabrica, precio_transporte)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        albaran["id"],
+                        albaran["numero"],
+                        albaran["fecha"].isoformat(),
+                        albaran["proveedor"],
+                        albaran["fabrica"],
+                        albaran["precio_transporte"],
+                    ),
+                )
+                conn.executemany(
+                    """
+                    INSERT INTO delivery_note_lines (
+                        albaran_id, codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            albaran["id"],
+                            linea["codigo"],
+                            linea["nombre"],
+                            linea["tipo"],
+                            linea["precio_pvo"],
+                            linea["precio_pvp"],
+                            linea["cantidad"],
+                        )
+                        for linea in albaran["lineas"]
+                    ],
+                )
+
+
+def _load_data():
+    global storage_locations, inventory_items, purchase_orders, delivery_notes, gaveta_secuencia, gaveta_asignaciones
+    with get_connection() as conn:
+        storage_locations = [
+            {
+                "nombre": row["nombre"],
+                "tipo": row["tipo"],
+                "created_at": _as_datetime(row["created_at"]),
+            }
+            for row in conn.execute(
+                "SELECT nombre, tipo, created_at FROM storage_locations ORDER BY created_at"
+            )
+        ]
+
+        inventory_items = [
+            {
+                "codigo": row["codigo"],
+                "nombre": row["nombre"],
+                "cantidad": row["cantidad"],
+                "ubicacion": row["ubicacion"],
+            }
+            for row in conn.execute(
+                "SELECT codigo, nombre, cantidad, ubicacion FROM inventory_items ORDER BY codigo"
+            )
+        ]
+
+        purchase_orders = []
+        pedidos_rows = conn.execute(
+            "SELECT id, cliente, fecha, estado, notas FROM purchase_orders ORDER BY fecha"
+        ).fetchall()
+        for pedido in pedidos_rows:
+            lineas = [
+                {
+                    "codigo": linea["codigo"],
+                    "descripcion": linea["descripcion"],
+                    "cantidad_pedida": linea["cantidad_pedida"],
+                    "cantidad_recibida": linea["cantidad_recibida"],
+                    "cantidad_pendiente": linea["cantidad_pendiente"],
+                }
+                for linea in conn.execute(
+                    """
+                    SELECT codigo, descripcion, cantidad_pedida, cantidad_recibida, cantidad_pendiente
+                    FROM purchase_order_lines WHERE pedido_id = ? ORDER BY id
+                    """,
+                    (pedido["id"],),
+                )
+            ]
+            purchase_orders.append(
+                {
+                    "id": pedido["id"],
+                    "cliente": pedido["cliente"],
+                    "fecha": _as_datetime(pedido["fecha"]),
+                    "estado": pedido["estado"],
+                    "notas": pedido["notas"],
+                    "lineas": lineas,
+                }
+            )
+
+        delivery_notes = []
+        albaranes_rows = conn.execute(
+            "SELECT id, numero, fecha, proveedor, fabrica, precio_transporte FROM delivery_notes ORDER BY fecha"
+        ).fetchall()
+        for albaran in albaranes_rows:
+            lineas = [
+                {
+                    "codigo": linea["codigo"],
+                    "nombre": linea["nombre"],
+                    "tipo": linea["tipo"],
+                    "precio_pvo": linea["precio_pvo"],
+                    "precio_pvp": linea["precio_pvp"],
+                    "cantidad": linea["cantidad"],
+                }
+                for linea in conn.execute(
+                    """
+                    SELECT codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad
+                    FROM delivery_note_lines WHERE albaran_id = ? ORDER BY id
+                    """,
+                    (albaran["id"],),
+                )
+            ]
+            delivery_notes.append(
+                {
+                    "id": albaran["id"],
+                    "numero": albaran["numero"],
+                    "fecha": _as_datetime(albaran["fecha"]),
+                    "proveedor": albaran["proveedor"],
+                    "fabrica": albaran["fabrica"],
+                    "precio_transporte": albaran["precio_transporte"],
+                    "lineas": lineas,
+                }
+            )
+
+        asignaciones_rows = conn.execute(
+            """
+            SELECT pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at
+            FROM gaveta_asignaciones
+            """
+        ).fetchall()
+        gaveta_asignaciones = {
+            (row["pedido_id"], row["codigo"].lower()): {
+                "pedido_id": row["pedido_id"],
+                "cliente": row["cliente"],
+                "codigo": row["codigo"],
+                "descripcion": row["descripcion"],
+                "unidades": row["unidades"],
+                "gaveta": {
+                    "nombre": row["gaveta_nombre"],
+                    "tipo": row["gaveta_tipo"],
+                    "created_at": _as_datetime(row["created_at"]),
+                },
+            }
+            for row in asignaciones_rows
+        }
+        gaveta_secuencia = len(storage_locations) + 1
+
+
+def ensure_database():
+    _init_db_schema()
+    _seed_if_empty()
+    _load_data()
+
+
+ensure_database()
 
 
 @app.route("/")
@@ -241,13 +586,21 @@ def crear_gavetas():
         if not nombre or not tipo:
             flash("El nombre y el tipo de la ubicación son obligatorios.", "error")
         else:
-            storage_locations.append(
-                {
-                    "nombre": nombre,
-                    "tipo": tipo,
-                    "created_at": datetime.now(),
-                }
-            )
+            nueva_ubicacion = {
+                "nombre": nombre,
+                "tipo": tipo,
+                "created_at": datetime.now(),
+            }
+            storage_locations.append(nueva_ubicacion)
+            with get_connection() as conn:
+                conn.execute(
+                    "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
+                    (
+                        nueva_ubicacion["nombre"],
+                        nueva_ubicacion["tipo"],
+                        nueva_ubicacion["created_at"].isoformat(),
+                    ),
+                )
             flash("Ubicación registrada correctamente.", "success")
         return redirect(url_for("crear_gavetas"))
 
@@ -338,6 +691,11 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
         "created_at": datetime.now(),
     }
     storage_locations.append(nueva_gaveta)
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
+            (nueva_gaveta["nombre"], nueva_gaveta["tipo"], nueva_gaveta["created_at"].isoformat()),
+        )
     asignacion = {
         "pedido_id": pedido["id"],
         "cliente": pedido["cliente"],
@@ -347,6 +705,23 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
         "gaveta": nueva_gaveta,
     }
     gaveta_asignaciones[clave] = asignacion
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                asignacion["pedido_id"],
+                asignacion["codigo"],
+                asignacion["cliente"],
+                asignacion["descripcion"],
+                asignacion["unidades"],
+                nueva_gaveta["nombre"],
+                nueva_gaveta["tipo"],
+                nueva_gaveta["created_at"].isoformat(),
+            ),
+        )
     return clave, asignacion, True
 
 
@@ -354,6 +729,11 @@ def _actualizar_unidades_gaveta(clave, delta: int):
     asignacion = gaveta_asignaciones.get(clave)
     if asignacion:
         asignacion["unidades"] = max(asignacion["unidades"] + delta, 0)
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE gaveta_asignaciones SET unidades = ? WHERE pedido_id = ? AND lower(codigo) = ?",
+                (asignacion["unidades"], clave[0], clave[1].lower()),
+            )
     return asignacion
 
 
@@ -404,6 +784,21 @@ def _crear_albaran():
         "lineas": [],
     }
     delivery_notes.append(nuevo_albaran)
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO delivery_notes (id, numero, fecha, proveedor, fabrica, precio_transporte)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nuevo_albaran["id"],
+                nuevo_albaran["numero"],
+                nuevo_albaran["fecha"].isoformat(),
+                nuevo_albaran["proveedor"],
+                nuevo_albaran["fabrica"],
+                nuevo_albaran["precio_transporte"],
+            ),
+        )
     return nuevo_albaran
 
 
@@ -418,6 +813,15 @@ def _registrar_en_albaran(albaran: dict, linea: dict):
     )
     if linea_existente:
         linea_existente["cantidad"] += 1
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE delivery_note_lines
+                SET cantidad = ?
+                WHERE albaran_id = ? AND lower(codigo) = ?
+                """,
+                (linea_existente["cantidad"], albaran["id"], codigo.lower()),
+            )
         return linea_existente
 
     nueva_linea = {
@@ -429,6 +833,22 @@ def _registrar_en_albaran(albaran: dict, linea: dict):
         "cantidad": 1,
     }
     albaran["lineas"].append(nueva_linea)
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO delivery_note_lines (albaran_id, codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                albaran["id"],
+                nueva_linea["codigo"],
+                nueva_linea["nombre"],
+                nueva_linea["tipo"],
+                nueva_linea["precio_pvo"],
+                nueva_linea["precio_pvp"],
+                nueva_linea["cantidad"],
+            ),
+        )
     return nueva_linea
 
 
@@ -455,6 +875,7 @@ def _deshacer_ultima_lectura():
     linea["cantidad_pendiente"] = min(
         linea["cantidad_pendiente"] + 1, linea["cantidad_pedida"]
     )
+    _persistir_linea_pedido(registro["pedido_id"], linea)
     gaveta_key = registro.get("gaveta_key")
     asignacion = _actualizar_unidades_gaveta(gaveta_key, -1) if gaveta_key else None
     if asignacion:
@@ -534,6 +955,7 @@ def lectura_codigos():
                         linea["cantidad_pedida"] - nueva_cantidad_recibida, 0
                     )
                     linea["cantidad_recibida"] = nueva_cantidad_recibida
+                    _persistir_linea_pedido(pedido["id"], linea)
                     completado = linea["cantidad_pendiente"] == 0
                     gaveta_key, asignacion, gaveta_creada = _obtener_o_crear_gaveta(
                         pedido, linea
@@ -733,6 +1155,18 @@ def pedidos():
                 "lineas": [nueva_linea],
             }
             purchase_orders.append(nuevo_pedido)
+            with get_connection() as conn:
+                conn.execute(
+                    "INSERT INTO purchase_orders (id, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?)",
+                    (
+                        nuevo_pedido["id"],
+                        nuevo_pedido["cliente"],
+                        nuevo_pedido["fecha"].isoformat(),
+                        nuevo_pedido["estado"],
+                        nuevo_pedido["notas"],
+                    ),
+                )
+            _insertar_linea_pedido(nuevo_id, nueva_linea)
             flash(f"Pedido #{nuevo_id} registrado correctamente.", "success")
         return redirect(url_for("pedidos"))
 
