@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+{% block title %}Stock Ópticas{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">Control independiente</p>
+        <h1>Stock Ópticas</h1>
+        <p>Cuatro sucursales con inventarios separados para gestionar entradas, retiradas, transferencias y detalles de cada producto.</p>
+    </div>
+</section>
+
+<section class="controls">
+    <form method="get" class="dropdown-form">
+        <label for="sucursal">Selecciona la sucursal</label>
+        <div class="picker">
+            <select name="sucursal" id="sucursal" onchange="this.form.submit()">
+                {% for nombre in sucursales %}
+                    <option value="{{ nombre }}" {% if nombre == sucursal %}selected{% endif %}>{{ nombre }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Cambiar</button>
+        </div>
+    </form>
+</section>
+
+<section class="grid">
+    <article class="card highlight">
+        <div>
+            <p class="eyebrow">Resumen rápido</p>
+            <h2>{{ sucursal }}</h2>
+        </div>
+        <div class="pill">{{ productos|length }} productos</div>
+        <p class="muted">Cada óptica mantiene su inventario separado del resto de la aplicación.</p>
+    </article>
+    <article class="card">
+        <div class="header">
+            <div>
+                <p class="eyebrow">Añadir producto</p>
+                <h3>Nuevo artículo en {{ sucursal }}</h3>
+            </div>
+            <button type="button" class="ghost" onclick="document.getElementById('add-product').classList.toggle('open')">Mostrar/Ocultar</button>
+        </div>
+        <form id="add-product" class="stack open" method="post">
+            <input type="hidden" name="action_type" value="add_product" />
+            <input type="hidden" name="sucursal" value="{{ sucursal }}" />
+            <div class="grid two">
+                <label>Código
+                    <input type="text" name="codigo" required />
+                </label>
+                <label>Nombre
+                    <input type="text" name="nombre" required />
+                </label>
+            </div>
+            <div class="grid two">
+                <label>Tipo de producto
+                    <input type="text" name="tipo" placeholder="Montura, gafa de sol, accesorio..." />
+                </label>
+                <label>Cantidad inicial
+                    <input type="number" name="cantidad" min="0" value="0" />
+                </label>
+            </div>
+            <div class="grid two">
+                <label>Precio al por mayor (PVO)
+                    <input type="number" name="precio_pvo" min="0" step="0.01" value="0" />
+                </label>
+                <label>Precio venta (PVP)
+                    <input type="number" name="precio_pvp" min="0" step="0.01" value="0" />
+                </label>
+            </div>
+            <div class="actions">
+                <button type="submit">Guardar producto</button>
+            </div>
+        </form>
+    </article>
+</section>
+
+<section class="table-wrapper">
+    <div class="header">
+        <div>
+            <p class="eyebrow">Inventario</p>
+            <h3>Productos en {{ sucursal }}</h3>
+        </div>
+    </div>
+    {% if productos %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Tipo</th>
+                    <th>Cantidad</th>
+                    <th>PVO</th>
+                    <th>PVP</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for producto in productos %}
+                <tr>
+                    <td>{{ producto.codigo }}</td>
+                    <td>{{ producto.nombre }}</td>
+                    <td>{{ producto.tipo or "-" }}</td>
+                    <td><strong>{{ producto.cantidad }}</strong></td>
+                    <td>{{ "%.2f"|format(producto.precio_pvo or 0) }} €</td>
+                    <td>{{ "%.2f"|format(producto.precio_pvp or 0) }} €</td>
+                    <td>
+                        <div class="actions-grid">
+                            <form method="post" class="inline">
+                                <input type="hidden" name="action_type" value="add_units" />
+                                <input type="hidden" name="codigo" value="{{ producto.codigo }}" />
+                                <input type="hidden" name="sucursal" value="{{ sucursal }}" />
+                                <input type="number" name="cantidad" min="1" placeholder="Unidades" />
+                                <button type="submit">Añadir</button>
+                            </form>
+                            <form method="post" class="inline withdraw">
+                                <input type="hidden" name="action_type" value="withdraw_units" />
+                                <input type="hidden" name="codigo" value="{{ producto.codigo }}" />
+                                <input type="hidden" name="sucursal" value="{{ sucursal }}" />
+                                <div class="withdraw-controls">
+                                    <input type="number" name="cantidad" min="1" placeholder="Unidades" />
+                                    <div class="reasons" data-producto="{{ producto.codigo }}">
+                                        {% set base_id = 'r_' ~ loop.index %}
+                                        {% for opcion in ["Amazon", "Avelino", "Privé", "Miravia", "Otro"] %}
+                                            {% set input_id = base_id ~ '_' ~ loop.index %}
+                                            <label class="reason">
+                                                <input type="radio" name="withdraw_reason" value="{{ opcion }}" id="{{ input_id }}" {% if loop.first %}checked{% endif %} />
+                                                {{ opcion }}
+                                            </label>
+                                        {% endfor %}
+                                        <input type="text" name="other_reason" class="other-input" placeholder="Otro motivo" />
+                                    </div>
+                                </div>
+                                <button type="submit" class="secondary">Retirar</button>
+                            </form>
+                            <form method="post" class="inline">
+                                <input type="hidden" name="action_type" value="transfer_units" />
+                                <input type="hidden" name="codigo" value="{{ producto.codigo }}" />
+                                <input type="hidden" name="sucursal" value="{{ sucursal }}" />
+                                <div class="transfer">
+                                    <input type="number" name="cantidad" min="1" placeholder="Unidades" />
+                                    <select name="destino">
+                                        <option value="">Destino</option>
+                                        {% for nombre in sucursales %}
+                                            {% if nombre != sucursal %}
+                                                <option value="{{ nombre }}">{{ nombre }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <button type="submit" class="ghost">Transferir</button>
+                            </form>
+                            <a href="{{ url_for('stock_opticas_detalle', sucursal=sucursal, codigo=producto.codigo) }}" class="button-link">Ver detalle</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <div class="empty-state">
+            <p>No hay productos registrados en esta sucursal todavía.</p>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.querySelectorAll('.withdraw').forEach(function(form) {
+        const radios = form.querySelectorAll('input[type="radio"][name="withdraw_reason"]');
+        const otherInput = form.querySelector('.other-input');
+
+        function toggleOther() {
+            const selected = form.querySelector('input[name="withdraw_reason"]:checked');
+            const isOther = selected && selected.value === 'Otro';
+            otherInput.disabled = !isOther;
+            otherInput.required = isOther;
+            if (!isOther) {
+                otherInput.value = '';
+            }
+        }
+
+        radios.forEach(function(radio) {
+            radio.addEventListener('change', toggleOther);
+        });
+
+        toggleOther();
+    });
+</script>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+.hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(120deg, #273c75, #4b7bec);
+    color: #fff;
+    padding: 1.75rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+}
+
+.hero h1 {
+    margin: 0.25rem 0 0;
+    font-size: 2rem;
+}
+
+.eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.75rem;
+    margin: 0;
+    opacity: 0.8;
+}
+
+.controls {
+    margin: 1.5rem 0;
+}
+
+.dropdown-form label {
+    font-weight: 700;
+    display: block;
+    margin-bottom: 0.35rem;
+}
+
+.picker {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.picker select {
+    flex: 1;
+    padding: 0.75rem;
+    border-radius: 10px;
+    border: 1px solid #dcdde1;
+    font-size: 1rem;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.grid.two {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.card.highlight {
+    background: #f0f6ff;
+    border: 1px solid #d6e4ff;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.pill {
+    align-self: flex-start;
+    background: #273c75;
+    color: #fff;
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    font-weight: 700;
+}
+
+.muted {
+    color: #718093;
+    margin: 0;
+}
+
+.stack {
+    display: grid;
+    gap: 0.75rem;
+}
+
+#add-product:not(.open) {
+    display: none;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.table-wrapper {
+    margin-top: 2rem;
+}
+
+.table-card {
+    overflow-x: auto;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+}
+
+.actions-grid {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.actions-grid .inline {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.actions-grid input[type="number"],
+.actions-grid select,
+.actions-grid input[type="text"] {
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    border-radius: 8px;
+    border: 1px solid #dcdde1;
+    box-sizing: border-box;
+}
+
+.actions-grid button,
+.actions-grid .button-link,
+.actions-grid .ghost,
+.actions-grid .secondary {
+    justify-self: start;
+}
+
+.reasons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+}
+
+.reason {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: #f5f6fa;
+    border: 1px solid #dcdde1;
+    border-radius: 10px;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.reason input {
+    margin: 0;
+}
+
+.other-input {
+    flex: 1;
+    min-width: 180px;
+}
+
+.withdraw-controls {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.transfer {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.35rem;
+}
+
+.ghost {
+    background: transparent;
+    color: #273c75;
+    border: 1px solid #273c75;
+}
+
+.secondary {
+    background: #e1b12c;
+    color: #192a56;
+}
+
+@media (max-width: 768px) {
+    .hero {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .actions-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
