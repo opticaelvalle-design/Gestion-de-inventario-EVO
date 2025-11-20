@@ -2,28 +2,39 @@
 {% block title %}Mostrar stock · Gestión de Inventario EVO{% endblock %}
 {% block content %}
 <h2 class="section-title">Estado del inventario</h2>
-<p>Consulta la lista completa de artículos registrados, con sus cantidades actuales y ubicaciones asignadas.</p>
+<p>Consulta la lista completa de artículos registrados y actualiza sus datos directamente desde esta vista.</p>
 {% if inventario %}
-    <table>
-        <thead>
-            <tr>
-                <th>Código</th>
-                <th>Nombre</th>
-                <th>Cantidad</th>
-                <th>Ubicación</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in inventario %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
                 <tr>
-                    <td>{{ item.codigo }}</td>
-                    <td>{{ item.nombre }}</td>
-                    <td>{{ item.cantidad }}</td>
-                    <td>{{ item.ubicacion }}</td>
+                    <th style="min-width: 120px;">Código</th>
+                    <th>Nombre</th>
+                    <th style="width: 130px;">Cantidad</th>
+                    <th>Ubicación</th>
+                    <th style="width: 220px;">Editar stock</th>
                 </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {% for item in inventario %}
+                    <tr>
+                        <td>{{ item.codigo }}</td>
+                        <td>{{ item.nombre }}</td>
+                        <td>{{ item.cantidad }}</td>
+                        <td>{{ item.ubicacion }}</td>
+                        <td>
+                            <form method="post" action="{{ url_for('actualizar_inventario', codigo=item.codigo) }}" class="inline-form">
+                                <input type="text" name="nombre" value="{{ item.nombre }}" aria-label="Nombre" />
+                                <input type="number" name="cantidad" value="{{ item.cantidad }}" min="0" aria-label="Cantidad" />
+                                <input type="text" name="ubicacion" value="{{ item.ubicacion }}" aria-label="Ubicación" />
+                                <button type="submit" class="button-link">Guardar</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 {% else %}
     <div class="empty-state">Aún no hay artículos registrados.</div>
 {% endif %}

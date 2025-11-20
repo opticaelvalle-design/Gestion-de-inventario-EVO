@@ -608,6 +608,93 @@ def crear_gavetas():
     return render_template("crear_gavetas.html", ubicaciones=storage_locations)
 
 
+@app.route("/crear-gavetas/exportar")
+def exportar_gavetas():
+    csv_buffer = io.StringIO()
+    writer = csv.writer(csv_buffer)
+    writer.writerow([
+        "Nombre",
+        "Tipo",
+        "Fecha de alta",
+        "Unidades en inventario",
+        "Unidades asignadas",
+        "Unidades totales",
+    ])
+
+    for ubicacion in storage_locations:
+        unidades_inventario = sum(
+            item["cantidad"] for item in inventory_items if item["ubicacion"].lower() == ubicacion["nombre"].lower()
+        )
+        unidades_asignadas = sum(
+            asignacion["unidades"]
+            for asignacion in gaveta_asignaciones.values()
+            if asignacion["gaveta"]["nombre"].lower() == ubicacion["nombre"].lower()
+        )
+        writer.writerow(
+            [
+                ubicacion["nombre"],
+                ubicacion["tipo"],
+                _as_datetime(ubicacion["created_at"]).strftime("%Y-%m-%d %H:%M"),
+                unidades_inventario,
+                unidades_asignadas,
+                unidades_inventario + unidades_asignadas,
+            ]
+        )
+
+    output = io.BytesIO()
+    output.write(csv_buffer.getvalue().encode("utf-8"))
+    output.seek(0)
+    filename = f"gavetas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+    return send_file(output, mimetype="text/csv", as_attachment=True, download_name=filename)
+
+
+@app.route("/crear-gavetas/<path:nombre>/renombrar", methods=["POST"])
+def renombrar_gaveta(nombre: str):
+    global storage_locations, inventory_items, gaveta_asignaciones
+
+    ubicacion = next(
+        (
+            ubicacion
+            for ubicacion in storage_locations
+            if ubicacion["nombre"].lower() == nombre.lower()
+        ),
+        None,
+    )
+    if not ubicacion:
+        flash("No se encontró la gaveta a renombrar.", "error")
+        return redirect(url_for("crear_gavetas"))
+
+    nuevo_nombre = request.form.get("nuevo_nombre", "").strip()
+    if not nuevo_nombre:
+        flash("Introduce un nuevo nombre para la gaveta.", "error")
+        return redirect(url_for("gaveta_detalle", nombre=nombre))
+
+    if any(ubic["nombre"].lower() == nuevo_nombre.lower() for ubic in storage_locations):
+        flash("Ya existe una ubicación con ese nombre.", "error")
+        return redirect(url_for("gaveta_detalle", nombre=nombre))
+
+    ubicacion["nombre"] = nuevo_nombre
+    with get_connection() as conn:
+        conn.execute("UPDATE storage_locations SET nombre = ? WHERE lower(nombre) = ?", (nuevo_nombre, nombre.lower()))
+        conn.execute("UPDATE inventory_items SET ubicacion = ? WHERE lower(ubicacion) = ?", (nuevo_nombre, nombre.lower()))
+        conn.execute(
+            "UPDATE gaveta_asignaciones SET gaveta_nombre = ? WHERE lower(gaveta_nombre) = ?",
+            (nuevo_nombre, nombre.lower()),
+        )
+
+    for articulo in inventory_items:
+        if articulo["ubicacion"].lower() == nombre.lower():
+            articulo["ubicacion"] = nuevo_nombre
+
+    for asignacion in gaveta_asignaciones.values():
+        if asignacion["gaveta"]["nombre"].lower() == nombre.lower():
+            asignacion["gaveta"]["nombre"] = nuevo_nombre
+
+    flash("Nombre de gaveta actualizado correctamente.", "success")
+    return redirect(url_for("gaveta_detalle", nombre=nuevo_nombre))
+
+
 @app.route("/crear-gavetas/<path:nombre>/eliminar", methods=["POST"])
 def eliminar_gaveta(nombre: str):
     global storage_locations, gaveta_asignaciones
@@ -1151,6 +1238,35 @@ def mostrar_stock():
     return render_template("mostrar_stock.html", inventario=inventory_items)
 
 
+@app.route("/inventario/<codigo>/actualizar", methods=["POST"])
+def actualizar_inventario(codigo: str):
+    item = next((articulo for articulo in inventory_items if articulo["codigo"].lower() == codigo.lower()), None)
+    if not item:
+        flash("No se encontró el artículo solicitado.", "error")
+        return redirect(url_for("mostrar_stock"))
+
+    nuevo_nombre = request.form.get("nombre", "").strip()
+    nueva_cantidad = request.form.get("cantidad", type=int)
+    nueva_ubicacion = request.form.get("ubicacion", "").strip()
+
+    if not nuevo_nombre or nueva_cantidad is None or nueva_cantidad < 0 or not nueva_ubicacion:
+        flash("Completa nombre, cantidad (0 o superior) y ubicación para actualizar el artículo.", "error")
+        return redirect(url_for("mostrar_stock"))
+
+    item["nombre"] = nuevo_nombre
+    item["cantidad"] = nueva_cantidad
+    item["ubicacion"] = nueva_ubicacion
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE inventory_items SET nombre = ?, cantidad = ?, ubicacion = ? WHERE lower(codigo) = ?",
+            (nuevo_nombre, nueva_cantidad, nueva_ubicacion, codigo.lower()),
+        )
+
+    flash(f"Artículo {codigo} actualizado correctamente.", "success")
+    return redirect(url_for("mostrar_stock"))
+
+
 @app.route("/panel-control")
 def panel_control():
     total_articulos = len(inventory_items)
@@ -1338,6 +1454,33 @@ def albaran_detalle(albaran_id: int):
         albaran=albaran,
         totales=totales,
     )
+
+
+@app.route("/albaranes/<int:albaran_id>/actualizar", methods=["POST"])
+def actualizar_albaran(albaran_id: int):
+    albaran = next((nota for nota in delivery_notes if nota["id"] == albaran_id), None)
+    if not albaran:
+        flash("No se encontró el albarán solicitado.", "error")
+        return redirect(url_for("albaranes"))
+
+    nuevo_numero = request.form.get("numero", "").strip()
+    nuevo_proveedor = request.form.get("proveedor", "").strip()
+
+    if not nuevo_numero or not nuevo_proveedor:
+        flash("Completa el número de albarán y el proveedor para actualizar.", "error")
+        return redirect(url_for("albaran_detalle", albaran_id=albaran_id))
+
+    albaran["numero"] = nuevo_numero
+    albaran["proveedor"] = nuevo_proveedor
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE delivery_notes SET numero = ?, proveedor = ? WHERE id = ?",
+            (nuevo_numero, nuevo_proveedor, albaran_id),
+        )
+
+    flash("Datos de cabecera del albarán actualizados.", "success")
+    return redirect(url_for("albaran_detalle", albaran_id=albaran_id))
 
 
 if __name__ == "__main__":

@@ -10,6 +10,13 @@
         <p>{{ ubicacion.tipo }} · Sin límite de unidades.</p>
         <p>Dada de alta el {{ ubicacion.created_at.strftime('%d/%m/%Y %H:%M') }}.</p>
     </div>
+    <div>
+        <form method="post" action="{{ url_for('renombrar_gaveta', nombre=ubicacion.nombre) }}" class="inline-form">
+            <label for="nuevo_nombre">Cambiar nombre de la gaveta</label>
+            <input type="text" id="nuevo_nombre" name="nuevo_nombre" value="{{ ubicacion.nombre }}" required />
+            <button type="submit" class="button-link">Actualizar nombre</button>
+        </form>
+    </div>
     <div class="stat-card" style="width: 100%;">
         <span>Unidades registradas en esta ubicación</span>
         <strong>{{ total_unidades }}</strong>
