@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Detalle albarán {{ albaran.numero }} · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<section class="card" style="gap: 0.75rem;">
+    <div>
+        <h2>Albarán {{ albaran.numero }}</h2>
+        <p>Proveedor: <strong>{{ albaran.proveedor }}</strong> · Destino: <strong>{{ albaran.fabrica }}</strong></p>
+        <p>Fecha de recepción: {{ albaran.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+        <div class="stat-card">
+            <span>Líneas</span>
+            <strong>{{ albaran.lineas | length }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Unidades totales</span>
+            <strong>{{ totales.total_unidades }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Valor PVO</span>
+            <strong>{{ '€{:.2f}'.format(totales.total_pvo) }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Valor PVP</span>
+            <strong>{{ '€{:.2f}'.format(totales.total_pvp) }}</strong>
+        </div>
+    </div>
+</section>
+
+{% if albaran.lineas %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Tipo</th>
+                    <th>Precio PVO</th>
+                    <th>Precio PVP</th>
+                    <th>Cantidad</th>
+                    <th>Total PVO</th>
+                    <th>Total PVP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for linea in albaran.lineas %}
+                    <tr>
+                        <td>{{ linea.codigo }}</td>
+                        <td>{{ linea.nombre }}</td>
+                        <td>{{ linea.tipo or '-' }}</td>
+                        <td>{{ '€{:.2f}'.format(linea.precio_pvo) }}</td>
+                        <td>{{ '€{:.2f}'.format(linea.precio_pvp) }}</td>
+                        <td>{{ linea.cantidad }}</td>
+                        <td>{{ '€{:.2f}'.format(linea.precio_pvo * linea.cantidad) }}</td>
+                        <td>{{ '€{:.2f}'.format(linea.precio_pvp * linea.cantidad) }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>Este albarán todavía no tiene líneas registradas.</p>
+    </div>
+{% endif %}
+{% endblock %}
