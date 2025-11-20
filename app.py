@@ -6,6 +6,7 @@ from pathlib import Path
 
 from flask import (
     Flask,
+    abort,
     flash,
     redirect,
     render_template,
@@ -218,6 +219,118 @@ INITIAL_DELIVERY_NOTES = [
         ],
     },
 ]
+
+OPTICAL_BRANCHES = ["Blanca", "Abarán", "Bajo", "Murcia"]
+
+OPTICAL_INVENTORY = {
+    "Blanca": {
+        "OPT-001": {
+            "codigo": "OPT-001",
+            "nombre": "Gafas de sol clásicas",
+            "tipo": "Gafa de sol",
+            "precio_pvo": 38.5,
+            "precio_pvp": 79.9,
+            "cantidad": 18,
+            "historial": [
+                {
+                    "fecha": datetime(2024, 5, 10, 10, 30),
+                    "descripcion": "Entrada inicial (+18)",
+                }
+            ],
+        },
+        "OPT-002": {
+            "codigo": "OPT-002",
+            "nombre": "Montura titanio",
+            "tipo": "Montura",
+            "precio_pvo": 55.0,
+            "precio_pvp": 120.0,
+            "cantidad": 9,
+            "historial": [
+                {
+                    "fecha": datetime(2024, 5, 12, 12, 15),
+                    "descripcion": "Entrada inicial (+9)",
+                }
+            ],
+        },
+    },
+    "Abarán": {
+        "OPT-101": {
+            "codigo": "OPT-101",
+            "nombre": "Lente contacto diaria",
+            "tipo": "Lentes de contacto",
+            "precio_pvo": 12.0,
+            "precio_pvp": 28.0,
+            "cantidad": 42,
+            "historial": [
+                {
+                    "fecha": datetime(2024, 5, 9, 16, 45),
+                    "descripcion": "Entrada inicial (+42)",
+                }
+            ],
+        }
+    },
+    "Bajo": {
+        "OPT-201": {
+            "codigo": "OPT-201",
+            "nombre": "Gafas graduadas acetato",
+            "tipo": "Gafa graduada",
+            "precio_pvo": 48.0,
+            "precio_pvp": 110.0,
+            "cantidad": 15,
+            "historial": [
+                {
+                    "fecha": datetime(2024, 5, 8, 11, 5),
+                    "descripcion": "Entrada inicial (+15)",
+                }
+            ],
+        },
+        "OPT-202": {
+            "codigo": "OPT-202",
+            "nombre": "Spray limpia lentes",
+            "tipo": "Accesorio",
+            "precio_pvo": 3.5,
+            "precio_pvp": 9.9,
+            "cantidad": 60,
+            "historial": [
+                {
+                    "fecha": datetime(2024, 5, 14, 9, 25),
+                    "descripcion": "Entrada inicial (+60)",
+                }
+            ],
+        },
+    },
+    "Murcia": {
+        "OPT-301": {
+            "codigo": "OPT-301",
+            "nombre": "Clip-on magnético",
+            "tipo": "Accesorio",
+            "precio_pvo": 9.5,
+            "precio_pvp": 24.0,
+            "cantidad": 33,
+            "historial": [
+                {
+                    "fecha": datetime(2024, 5, 5, 17, 40),
+                    "descripcion": "Entrada inicial (+33)",
+                }
+            ],
+        }
+    },
+}
+
+
+def add_optical_history(sucursal: str, codigo: str, descripcion: str) -> None:
+    """Añade un movimiento al historial del producto en la sucursal indicada."""
+
+    producto = OPTICAL_INVENTORY[sucursal][codigo]
+    producto.setdefault("historial", []).insert(
+        0, {"fecha": datetime.now(), "descripcion": descripcion}
+    )
+
+
+def get_optical_inventory(sucursal: str) -> dict:
+    """Devuelve el inventario de la sucursal, inicializándolo si no existe."""
+
+    return OPTICAL_INVENTORY.setdefault(sucursal, {})
 
 storage_locations = []
 inventory_items = []
@@ -1408,6 +1521,189 @@ def buscar_articulos():
             flash("No se encontraron artículos con ese criterio.", "warning")
 
     return render_template("buscar_articulos.html", termino=termino, resultados=resultados)
+
+
+@app.route("/stock-opticas", methods=["GET", "POST"])
+def stock_opticas():
+    sucursal_seleccionada = (
+        request.values.get("sucursal")
+        if request.values.get("sucursal") in OPTICAL_BRANCHES
+        else OPTICAL_BRANCHES[0]
+    )
+
+    if request.method == "POST":
+        action_type = request.form.get("action_type")
+        inventario = get_optical_inventory(sucursal_seleccionada)
+
+        if action_type == "add_product":
+            codigo = request.form.get("codigo", "").strip()
+            nombre = request.form.get("nombre", "").strip()
+            tipo = request.form.get("tipo", "").strip()
+
+            try:
+                cantidad = int(request.form.get("cantidad", 0))
+                precio_pvo = float(request.form.get("precio_pvo", 0) or 0)
+                precio_pvp = float(request.form.get("precio_pvp", 0) or 0)
+            except ValueError:
+                flash("Introduce valores numéricos válidos para cantidades y precios.", "error")
+                return redirect(url_for("stock_opticas", sucursal=sucursal_seleccionada))
+
+            if not codigo or not nombre:
+                flash("El código y el nombre son obligatorios.", "error")
+                return redirect(url_for("stock_opticas", sucursal=sucursal_seleccionada))
+
+            producto = inventario.get(codigo)
+            if producto:
+                producto.update(
+                    {
+                        "nombre": nombre,
+                        "tipo": tipo or producto.get("tipo", ""),
+                        "precio_pvo": precio_pvo,
+                        "precio_pvp": precio_pvp,
+                    }
+                )
+                producto["cantidad"] += cantidad
+                add_optical_history(
+                    sucursal_seleccionada,
+                    codigo,
+                    f"Actualización manual (+{cantidad})",
+                )
+            else:
+                inventario[codigo] = {
+                    "codigo": codigo,
+                    "nombre": nombre,
+                    "tipo": tipo,
+                    "precio_pvo": precio_pvo,
+                    "precio_pvp": precio_pvp,
+                    "cantidad": cantidad,
+                    "historial": [],
+                }
+                add_optical_history(
+                    sucursal_seleccionada,
+                    codigo,
+                    f"Alta de producto (+{cantidad})",
+                )
+
+            flash("Producto guardado en la sucursal seleccionada.", "success")
+            return redirect(url_for("stock_opticas", sucursal=sucursal_seleccionada))
+
+        codigo = request.form.get("codigo")
+        producto = inventario.get(codigo)
+
+        if not producto:
+            flash("Selecciona un producto válido para continuar.", "error")
+            return redirect(url_for("stock_opticas", sucursal=sucursal_seleccionada))
+
+        if action_type == "add_units":
+            try:
+                cantidad = int(request.form.get("cantidad", 0))
+            except ValueError:
+                cantidad = 0
+
+            if cantidad <= 0:
+                flash("Añade una cantidad mayor que cero.", "error")
+            else:
+                producto["cantidad"] += cantidad
+                add_optical_history(
+                    sucursal_seleccionada, codigo, f"Entrada manual (+{cantidad})"
+                )
+                flash("Cantidad añadida correctamente.", "success")
+
+        elif action_type == "withdraw_units":
+            try:
+                cantidad = int(request.form.get("cantidad", 0))
+            except ValueError:
+                cantidad = 0
+
+            motivo = request.form.get("withdraw_reason", "").strip() or "Otro"
+            if motivo == "Otro":
+                motivo = request.form.get("other_reason", "").strip() or "Otro"
+
+            if cantidad <= 0:
+                flash("Indica una cantidad válida para retirar.", "error")
+            else:
+                cantidad_real = min(cantidad, producto["cantidad"])
+                producto["cantidad"] -= cantidad_real
+                add_optical_history(
+                    sucursal_seleccionada,
+                    codigo,
+                    f"Salida ({motivo}) (-{cantidad_real})",
+                )
+                flash("Cantidad retirada del inventario.", "success")
+
+        elif action_type == "transfer_units":
+            destino = request.form.get("destino")
+            try:
+                cantidad = int(request.form.get("cantidad", 0))
+            except ValueError:
+                cantidad = 0
+
+            if destino not in OPTICAL_BRANCHES or destino == sucursal_seleccionada:
+                flash("Elige una sucursal de destino válida.", "error")
+            elif cantidad <= 0:
+                flash("Indica una cantidad válida para transferir.", "error")
+            else:
+                cantidad_real = min(cantidad, producto["cantidad"])
+                if cantidad_real <= 0:
+                    flash("No hay stock suficiente para transferir.", "error")
+                else:
+                    producto["cantidad"] -= cantidad_real
+                    inventario_destino = get_optical_inventory(destino)
+                    producto_destino = inventario_destino.get(codigo)
+                    if not producto_destino:
+                        inventario_destino[codigo] = {
+                            "codigo": codigo,
+                            "nombre": producto.get("nombre", codigo),
+                            "tipo": producto.get("tipo", ""),
+                            "precio_pvo": producto.get("precio_pvo", 0),
+                            "precio_pvp": producto.get("precio_pvp", 0),
+                            "cantidad": 0,
+                            "historial": [],
+                        }
+                        producto_destino = inventario_destino[codigo]
+
+                    producto_destino["cantidad"] += cantidad_real
+                    add_optical_history(
+                        sucursal_seleccionada,
+                        codigo,
+                        f"Transferencia a {destino} (-{cantidad_real})",
+                    )
+                    add_optical_history(
+                        destino,
+                        codigo,
+                        f"Transferencia desde {sucursal_seleccionada} (+{cantidad_real})",
+                    )
+                    flash("Transferencia registrada correctamente.", "success")
+
+        return redirect(url_for("stock_opticas", sucursal=sucursal_seleccionada))
+
+    productos = list(get_optical_inventory(sucursal_seleccionada).values())
+    productos.sort(key=lambda item: item.get("nombre", item.get("codigo")))
+
+    return render_template(
+        "stock_opticas.html",
+        sucursal=sucursal_seleccionada,
+        sucursales=OPTICAL_BRANCHES,
+        productos=productos,
+    )
+
+
+@app.route("/stock-opticas/<sucursal>/<codigo>")
+def stock_opticas_detalle(sucursal: str, codigo: str):
+    if sucursal not in OPTICAL_BRANCHES:
+        abort(404)
+
+    producto = OPTICAL_INVENTORY.get(sucursal, {}).get(codigo)
+    if not producto:
+        abort(404)
+
+    return render_template(
+        "stock_opticas_detalle.html",
+        sucursal=sucursal,
+        producto=producto,
+        sucursales=OPTICAL_BRANCHES,
+        historial=producto.get("historial", []),
+    )
 
 
 @app.route("/mostrar-stock")

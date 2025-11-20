@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Detalle {{ producto.nombre }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('stock_opticas', sucursal=sucursal) }}" class="button-link">← Volver al listado</a>
+
+<section class="detail">
+    <div class="card">
+        <p class="eyebrow">{{ sucursal }}</p>
+        <h1>{{ producto.nombre }}</h1>
+        <p class="muted">Código: {{ producto.codigo }}</p>
+        <div class="grid two">
+            <div>
+                <h3>Información</h3>
+                <ul class="info">
+                    <li><strong>Tipo:</strong> {{ producto.tipo or 'Sin especificar' }}</li>
+                    <li><strong>Cantidad:</strong> {{ producto.cantidad }}</li>
+                    <li><strong>Precio PVO:</strong> {{ "%.2f"|format(producto.precio_pvo or 0) }} €</li>
+                    <li><strong>Precio PVP:</strong> {{ "%.2f"|format(producto.precio_pvp or 0) }} €</li>
+                </ul>
+            </div>
+            <div>
+                <h3>Historial de movimientos</h3>
+                {% if historial %}
+                    <ul class="timeline">
+                        {% for movimiento in historial %}
+                            <li>
+                                <span class="date">{{ movimiento.fecha.strftime('%d/%m/%Y %H:%M') }}</span>
+                                <p>{{ movimiento.descripcion }}</p>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="muted">Sin movimientos registrados.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+.detail {
+    margin-top: 1.5rem;
+}
+
+.info {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.35rem;
+}
+
+.info strong {
+    color: #273c75;
+}
+
+.timeline {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.timeline li {
+    background: #f5f6fa;
+    border-radius: 10px;
+    padding: 0.75rem;
+    border: 1px solid #dcdde1;
+}
+
+.timeline .date {
+    font-size: 0.9rem;
+    color: #718093;
+}
+</style>
+{% endblock %}
