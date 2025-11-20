@@ -7,6 +7,14 @@
         <p>Proveedor: <strong>{{ albaran.proveedor }}</strong> · Destino: <strong>{{ albaran.fabrica }}</strong></p>
         <p>Fecha de recepción: {{ albaran.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
     </div>
+    <div>
+        <form method="post" action="{{ url_for('actualizar_albaran', albaran_id=albaran.id) }}" class="inline-form">
+            <label>Editar cabecera</label>
+            <input type="text" name="numero" value="{{ albaran.numero }}" placeholder="Número de albarán" required />
+            <input type="text" name="proveedor" value="{{ albaran.proveedor }}" placeholder="Proveedor" required />
+            <button type="submit" class="button-link">Guardar cambios</button>
+        </form>
+    </div>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
         <div class="stat-card">
             <span>Líneas</span>

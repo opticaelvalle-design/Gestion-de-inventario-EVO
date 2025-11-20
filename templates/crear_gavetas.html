@@ -3,6 +3,9 @@
 {% block content %}
 <h2 class="section-title">Registrar nuevas ubicaciones</h2>
 <p>Utiliza el formulario para añadir gavetas, baldas o cajones disponibles en tu almacén. Estas ubicaciones aparecerán en las vistas de stock y control.</p>
+<div style="margin: 0.5rem 0 1.25rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <a class="button-link" href="{{ url_for('exportar_gavetas') }}">Exportar gavetas a Excel</a>
+</div>
 <form method="post" novalidate>
     <div>
         <label for="nombre">Nombre o identificador</label>
