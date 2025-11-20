@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Albaranes de entrada · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<section class="card" style="gap: 1rem;">
+    <div>
+        <h2>Albaranes de entrada</h2>
+        <p>Consulta el histórico de albaranes que has ido recibiendo y accede a su detalle.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+        <div class="stat-card">
+            <span>Total albaranes</span>
+            <strong>{{ totales_generales.total_albaranes }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Unidades recibidas</span>
+            <strong>{{ totales_generales.unidades_recibidas }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Valor PVO acumulado</span>
+            <strong>{{ '€{:.2f}'.format(totales_generales.valor_pvo) }}</strong>
+        </div>
+        <div class="stat-card">
+            <span>Valor PVP acumulado</span>
+            <strong>{{ '€{:.2f}'.format(totales_generales.valor_pvp) }}</strong>
+        </div>
+    </div>
+</section>
+
+{% if albaranes %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Número</th>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th>Fábrica</th>
+                    <th>Líneas</th>
+                    <th>Unidades</th>
+                    <th>Valor PVO</th>
+                    <th>Valor PVP</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for albaran in albaranes %}
+                    <tr>
+                        <td>{{ albaran.numero }}</td>
+                        <td>{{ albaran.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ albaran.proveedor }}</td>
+                        <td>{{ albaran.fabrica }}</td>
+                        <td>{{ albaran.lineas | length }}</td>
+                        <td>{{ albaran.total_unidades }}</td>
+                        <td>{{ '€{:.2f}'.format(albaran.total_pvo) }}</td>
+                        <td>{{ '€{:.2f}'.format(albaran.total_pvp) }}</td>
+                        <td>
+                            <a class="button-link" style="padding: 0.4rem 0.65rem;" href="{{ url_for('albaran_detalle', albaran_id=albaran.id) }}">Ver detalle</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>Todavía no se han registrado albaranes de entrada.</p>
+    </div>
+{% endif %}
+{% endblock %}

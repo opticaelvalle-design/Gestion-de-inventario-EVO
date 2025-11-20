@@ -224,6 +224,8 @@ delivery_notes = [
     },
 ]
 
+active_delivery_note_id = None
+
 
 @app.route("/")
 def home():
@@ -381,6 +383,55 @@ def _totales_albaran(albaran):
     }
 
 
+def _buscar_albaran(albaran_id: int):
+    return next((nota for nota in delivery_notes if nota["id"] == albaran_id), None)
+
+
+def _generar_numero_albaran():
+    secuencia = max((nota["id"] for nota in delivery_notes), default=7000) - 7000 + 1
+    return f"ALB-{datetime.now().year}-{secuencia:03d}"
+
+
+def _crear_albaran():
+    nuevo_id = max((nota["id"] for nota in delivery_notes), default=7000) + 1
+    nuevo_albaran = {
+        "id": nuevo_id,
+        "numero": _generar_numero_albaran(),
+        "fecha": datetime.now(),
+        "proveedor": "Proveedor pendiente",
+        "fabrica": "Almacén principal",
+        "precio_transporte": 0.0,
+        "lineas": [],
+    }
+    delivery_notes.append(nuevo_albaran)
+    return nuevo_albaran
+
+
+def _registrar_en_albaran(albaran: dict, linea: dict):
+    if not albaran:
+        return None
+
+    codigo = linea.get("codigo", "")
+    linea_existente = next(
+        (item for item in albaran["lineas"] if item["codigo"].lower() == codigo.lower()),
+        None,
+    )
+    if linea_existente:
+        linea_existente["cantidad"] += 1
+        return linea_existente
+
+    nueva_linea = {
+        "codigo": codigo,
+        "nombre": linea.get("descripcion") or linea.get("nombre", codigo),
+        "tipo": linea.get("tipo", ""),
+        "precio_pvo": linea.get("precio_pvo", 0.0),
+        "precio_pvp": linea.get("precio_pvp", 0.0),
+        "cantidad": 1,
+    }
+    albaran["lineas"].append(nueva_linea)
+    return nueva_linea
+
+
 def _buscar_linea_por_codigo(codigo: str):
     codigo_lower = codigo.lower()
     pedidos_ordenados = sorted(purchase_orders, key=lambda pedido: pedido["fecha"])
@@ -414,11 +465,36 @@ def _deshacer_ultima_lectura():
 
 @app.route("/lectura-codigos", methods=["GET", "POST"])
 def lectura_codigos():
+    global active_delivery_note_id
     resultado = None
     codigo = ""
+    albaran_activo = _buscar_albaran(active_delivery_note_id) if active_delivery_note_id else None
     if request.method == "POST":
         accion = request.form.get("accion")
-        if accion == "deshacer":
+        if accion == "nuevo_albaran":
+            nuevo_albaran = _crear_albaran()
+            active_delivery_note_id = nuevo_albaran["id"]
+            albaran_activo = nuevo_albaran
+            flash(
+                f"Albarán {nuevo_albaran['numero']} creado y listo para registrar lecturas.",
+                "success",
+            )
+        elif accion == "seleccionar_albaran":
+            albaran_id = request.form.get("albaran_id", type=int)
+            seleccionado = _buscar_albaran(albaran_id) if albaran_id else None
+            if seleccionado:
+                active_delivery_note_id = seleccionado["id"]
+                albaran_activo = seleccionado
+                flash(
+                    f"Leyendo códigos en el albarán {seleccionado['numero']}.", "info"
+                )
+            else:
+                flash("Selecciona un albarán válido para continuar.", "warning")
+        elif accion == "detener_albaran":
+            active_delivery_note_id = None
+            albaran_activo = None
+            flash("Se detuvo la lectura en el albarán en curso.", "info")
+        elif accion == "deshacer":
             registro = _deshacer_ultima_lectura()
             if registro is None:
                 flash("No hay lecturas previas para deshacer.", "warning")
@@ -442,6 +518,10 @@ def lectura_codigos():
             codigo = request.form.get("codigo", "").strip()
             if not codigo:
                 flash("Introduce un código de barras.", "error")
+            elif not albaran_activo:
+                flash(
+                    "Crea o selecciona un albarán para registrar las lecturas.", "warning"
+                )
             else:
                 pedido, linea = _buscar_linea_por_codigo(codigo)
                 if not linea:
@@ -459,6 +539,7 @@ def lectura_codigos():
                         pedido, linea
                     )
                     _actualizar_unidades_gaveta(gaveta_key, 1)
+                    linea_albaran = _registrar_en_albaran(albaran_activo, linea)
                     resultado = {
                         "pedido_id": pedido["id"],
                         "cliente": pedido["cliente"],
@@ -467,6 +548,8 @@ def lectura_codigos():
                         "gaveta": asignacion["gaveta"]["nombre"],
                         "unidades_gaveta": asignacion["unidades"],
                         "gaveta_creada": gaveta_creada,
+                        "albaran": albaran_activo["numero"],
+                        "linea_albaran": linea_albaran,
                     }
                     lecturas_historial.append(
                         {
@@ -489,12 +572,17 @@ def lectura_codigos():
 
     lineas_pendientes = _lineas_pendientes()
     gavetas_activas = _listar_gavetas_activas()
+    albaranes_disponibles = sorted(
+        delivery_notes, key=lambda nota: nota["fecha"], reverse=True
+    )
     return render_template(
         "lectura_codigos.html",
         codigo=codigo,
         resultado=resultado,
         lineas_pendientes=lineas_pendientes,
         gavetas_activas=gavetas_activas,
+        albaran_activo=albaran_activo,
+        albaranes=albaranes_disponibles,
     )
 
 

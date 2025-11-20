@@ -6,9 +6,45 @@
         <h2>Lectura de códigos</h2>
         <p>Escanea o introduce manualmente un código para registrar la recepción unidad a unidad.</p>
     </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.75rem; align-items: end;">
+        <div class="stat-card" style="gap: 0.35rem;">
+            <span>Albarán en curso</span>
+            {% if albaran_activo %}
+                <strong>{{ albaran_activo.numero }}</strong>
+                <small style="color: #353b48;">{{ albaran_activo.proveedor }} · {{ albaran_activo.fabrica }}</small>
+            {% else %}
+                <strong>Ninguno</strong>
+                <small style="color: #c23616; font-weight: 600;">Selecciona o crea un albarán antes de leer.</small>
+            {% endif %}
+        </div>
+        <form method="post" style="gap: 0.35rem;">
+            <input type="hidden" name="accion" value="nuevo_albaran" />
+            <button type="submit">Crear albarán nuevo</button>
+        </form>
+        <form method="post" style="gap: 0.35rem;">
+            <label for="albaran_id">Elegir albarán existente</label>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <select name="albaran_id" id="albaran_id" style="flex: 1; padding: 0.55rem 0.75rem;">
+                    <option value="" disabled selected>Selecciona un albarán</option>
+                    {% for albaran in albaranes %}
+                        <option value="{{ albaran.id }}">{{ albaran.numero }} · {{ albaran.proveedor }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="accion" value="seleccionar_albaran" />
+                <button type="submit">Usar</button>
+            </div>
+        </form>
+        {% if albaran_activo %}
+            <form method="post" style="gap: 0.35rem;">
+                <input type="hidden" name="accion" value="detener_albaran" />
+                <button type="submit" style="background-color: #f6b93b; color: #2d3436; border-color: #f6b93b;">Dejar de leer en el albarán</button>
+            </form>
+        {% endif %}
+    </div>
     <form method="post" style="display: flex; flex-direction: column; gap: 0.5rem;">
         <label for="codigo">Código de barras</label>
         <input type="text" name="codigo" id="codigo" value="{{ codigo }}" placeholder="Ej. ABC123" autofocus autocomplete="off" />
+        <input type="hidden" name="accion" value="leer" />
         <button type="submit">Registrar recepción</button>
     </form>
     <form method="post" style="align-self: flex-start;">
@@ -23,6 +59,14 @@
                 Código {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} /
                 {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}
             </p>
+            {% if resultado.albaran %}
+                <p>
+                    Albarán: <strong>{{ resultado.albaran }}</strong>
+                    {% if resultado.linea_albaran %}
+                        · Unidades en albarán: {{ resultado.linea_albaran.cantidad }}
+                    {% endif %}
+                </p>
+            {% endif %}
             {% if resultado.gaveta %}
                 <p>
                     Ubicación asignada:
