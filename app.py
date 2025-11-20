@@ -920,6 +920,7 @@ def _actualizar_unidades_gaveta(clave, delta: int):
     asignacion = gaveta_asignaciones.get(clave)
     if asignacion:
         asignacion["unidades"] = max(asignacion["unidades"] + delta, 0)
+        _ajustar_stock_gaveta(asignacion, delta)
         with get_connection() as conn:
             conn.execute(
                 "UPDATE gaveta_asignaciones SET unidades = ? WHERE pedido_id = ? AND lower(codigo) = ?",
@@ -941,6 +942,123 @@ def _listar_gavetas_activas():
         for asignacion in gaveta_asignaciones.values()
     ]
     return sorted(gavetas, key=lambda gaveta: (gaveta["pedido_id"], gaveta["codigo"].lower()))
+
+
+def _ajustar_stock_gaveta(asignacion: dict, delta: int):
+    if not asignacion or delta == 0:
+        return None
+
+    codigo = asignacion["codigo"]
+    ubicacion = asignacion["gaveta"]["nombre"]
+    descripcion = asignacion.get("descripcion", codigo)
+    articulo_referencia = next(
+        (item for item in inventory_items if item["codigo"].lower() == codigo.lower()), None
+    )
+    nombre_articulo = articulo_referencia["nombre"] if articulo_referencia else descripcion
+
+    existente = next(
+        (
+            item
+            for item in inventory_items
+            if item["codigo"].lower() == codigo.lower()
+            and item["ubicacion"].lower() == ubicacion.lower()
+        ),
+        None,
+    )
+
+    if existente:
+        existente["cantidad"] = max(existente["cantidad"] + delta, 0)
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE inventory_items SET cantidad = ? WHERE id = ?",
+                (existente["cantidad"], existente["id"]),
+            )
+        return existente
+
+    if delta > 0:
+        with get_connection() as conn:
+            cursor = conn.execute(
+                "INSERT INTO inventory_items (codigo, nombre, cantidad, ubicacion) VALUES (?, ?, ?, ?)",
+                (codigo, nombre_articulo, delta, ubicacion),
+            )
+            nuevo_id = cursor.lastrowid
+        nuevo_articulo = {
+            "id": nuevo_id,
+            "codigo": codigo,
+            "nombre": nombre_articulo,
+            "cantidad": delta,
+            "ubicacion": ubicacion,
+        }
+        inventory_items.append(nuevo_articulo)
+        return nuevo_articulo
+
+    return None
+
+
+def _transferir_unidades_asignacion(asignacion: dict, nueva_gaveta: dict):
+    if not asignacion or asignacion["gaveta"]["nombre"].lower() == nueva_gaveta["nombre"].lower():
+        return
+
+    unidades = asignacion.get("unidades", 0)
+    if unidades > 0:
+        _ajustar_stock_gaveta(asignacion, -unidades)
+        asignacion_temporal = {**asignacion, "gaveta": nueva_gaveta}
+        _ajustar_stock_gaveta(asignacion_temporal, unidades)
+    asignacion["gaveta"] = nueva_gaveta
+
+
+def _asignar_gaveta_existente(pedido: dict, linea: dict, gaveta: dict):
+    clave = _clave_gaveta(pedido["id"], linea["codigo"])
+    descripcion = linea.get("descripcion") or linea.get("nombre", linea["codigo"])
+    asignacion = gaveta_asignaciones.get(clave)
+
+    if asignacion:
+        _transferir_unidades_asignacion(asignacion, gaveta)
+        asignacion["descripcion"] = descripcion
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE gaveta_asignaciones
+                SET descripcion = ?, gaveta_nombre = ?, gaveta_tipo = ?
+                WHERE pedido_id = ? AND lower(codigo) = ?
+                """,
+                (
+                    descripcion,
+                    gaveta["nombre"],
+                    gaveta["tipo"],
+                    pedido["id"],
+                    linea["codigo"].lower(),
+                ),
+            )
+        return clave, asignacion, False
+
+    nueva_asignacion = {
+        "pedido_id": pedido["id"],
+        "cliente": pedido["cliente"],
+        "codigo": linea["codigo"],
+        "descripcion": descripcion,
+        "unidades": 0,
+        "gaveta": gaveta,
+    }
+    gaveta_asignaciones[clave] = nueva_asignacion
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nueva_asignacion["pedido_id"],
+                nueva_asignacion["codigo"],
+                nueva_asignacion["cliente"],
+                nueva_asignacion["descripcion"],
+                nueva_asignacion["unidades"],
+                gaveta["nombre"],
+                gaveta["tipo"],
+                datetime.now().isoformat(),
+            ),
+        )
+    return clave, nueva_asignacion, True
 
 
 def _totales_albaran(albaran):
@@ -1582,6 +1700,49 @@ def eliminar_pedido(pedido_id: int):
     return redirect(url_for("pedidos"))
 
 
+@app.route("/pedidos/<int:pedido_id>/asignar-gaveta", methods=["POST"])
+def asignar_gaveta_pedido(pedido_id: int):
+    pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido solicitado.", "error")
+        return redirect(url_for("pedidos"))
+
+    codigo = request.form.get("codigo", "").strip()
+    gaveta_nombre = request.form.get("gaveta_nombre", "").strip()
+
+    if not codigo or not gaveta_nombre:
+        flash("Selecciona un código y una gaveta válida.", "warning")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    linea = next(
+        (linea for linea in pedido["lineas"] if linea["codigo"].lower() == codigo.lower()),
+        None,
+    )
+    if not linea:
+        flash("No se encontró la línea indicada en el pedido.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    gaveta = next(
+        (
+            ubicacion
+            for ubicacion in storage_locations
+            if ubicacion["tipo"].lower() == "gaveta"
+            and ubicacion["nombre"].lower() == gaveta_nombre.lower()
+        ),
+        None,
+    )
+    if not gaveta:
+        flash("Debes elegir una gaveta existente.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    _asignar_gaveta_existente(pedido, linea, gaveta)
+    flash(
+        f"Se asignó la gaveta {gaveta['nombre']} al código {linea['codigo']} del pedido #{pedido_id}.",
+        "success",
+    )
+    return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+
 @app.route("/pedidos/<int:pedido_id>")
 def pedido_detalle(pedido_id: int):
     pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
@@ -1593,12 +1754,23 @@ def pedido_detalle(pedido_id: int):
     total_recibido = sum(linea["cantidad_recibida"] for linea in pedido["lineas"])
     total_pendiente = sum(linea["cantidad_pendiente"] for linea in pedido["lineas"])
 
+    asignaciones = {
+        clave: asignacion
+        for clave, asignacion in gaveta_asignaciones.items()
+        if asignacion["pedido_id"] == pedido_id
+    }
+    gavetas_existentes = [
+        ubicacion for ubicacion in storage_locations if ubicacion["tipo"].lower() == "gaveta"
+    ]
+
     return render_template(
         "pedido_detalle.html",
         pedido=pedido,
         total_solicitado=total_solicitado,
         total_recibido=total_recibido,
         total_pendiente=total_pendiente,
+        asignaciones=asignaciones,
+        gavetas_existentes=gavetas_existentes,
     )
 
 
