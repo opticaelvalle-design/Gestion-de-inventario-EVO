@@ -269,6 +269,7 @@ def _insertar_linea_pedido(pedido_id: int, linea: dict):
 def get_connection():
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
@@ -605,6 +606,50 @@ def crear_gavetas():
         return redirect(url_for("crear_gavetas"))
 
     return render_template("crear_gavetas.html", ubicaciones=storage_locations)
+
+
+@app.route("/crear-gavetas/<path:nombre>/eliminar", methods=["POST"])
+def eliminar_gaveta(nombre: str):
+    global storage_locations, gaveta_asignaciones
+
+    ubicacion = next(
+        (
+            ubicacion
+            for ubicacion in storage_locations
+            if ubicacion["nombre"].lower() == nombre.lower()
+        ),
+        None,
+    )
+    if not ubicacion:
+        flash("No se encontró la ubicación a eliminar.", "error")
+        return redirect(url_for("crear_gavetas"))
+
+    asignaciones_a_eliminar = [
+        clave
+        for clave, asignacion in gaveta_asignaciones.items()
+        if asignacion["gaveta"]["nombre"].lower() == ubicacion["nombre"].lower()
+    ]
+    for clave in asignaciones_a_eliminar:
+        del gaveta_asignaciones[clave]
+
+    storage_locations = [
+        ubic
+        for ubic in storage_locations
+        if ubic["nombre"].lower() != ubicacion["nombre"].lower()
+    ]
+
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM gaveta_asignaciones WHERE lower(gaveta_nombre) = lower(?)",
+            (ubicacion["nombre"],),
+        )
+        conn.execute(
+            "DELETE FROM storage_locations WHERE lower(nombre) = lower(?)",
+            (ubicacion["nombre"],),
+        )
+
+    flash("La ubicación se eliminó correctamente.", "success")
+    return redirect(url_for("crear_gavetas"))
 
 
 @app.route("/crear-gavetas/<path:nombre>")
@@ -1195,6 +1240,30 @@ def pedidos():
     )
 
 
+@app.route("/pedidos/<int:pedido_id>/eliminar", methods=["POST"])
+def eliminar_pedido(pedido_id: int):
+    global purchase_orders, gaveta_asignaciones
+
+    pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido a eliminar.", "error")
+        return redirect(url_for("pedidos"))
+
+    purchase_orders = [pedido for pedido in purchase_orders if pedido["id"] != pedido_id]
+    gaveta_asignaciones = {
+        clave: asignacion
+        for clave, asignacion in gaveta_asignaciones.items()
+        if asignacion["pedido_id"] != pedido_id
+    }
+
+    with get_connection() as conn:
+        conn.execute("DELETE FROM gaveta_asignaciones WHERE pedido_id = ?", (pedido_id,))
+        conn.execute("DELETE FROM purchase_orders WHERE id = ?", (pedido_id,))
+
+    flash("El pedido se eliminó correctamente.", "success")
+    return redirect(url_for("pedidos"))
+
+
 @app.route("/pedidos/<int:pedido_id>")
 def pedido_detalle(pedido_id: int):
     pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
@@ -1235,6 +1304,24 @@ def albaranes():
         albaranes=albaranes_enriquecidos,
         totales_generales=totales_generales,
     )
+
+
+@app.route("/albaranes/<int:albaran_id>/eliminar", methods=["POST"])
+def eliminar_albaran(albaran_id: int):
+    global delivery_notes
+
+    albaran = next((nota for nota in delivery_notes if nota["id"] == albaran_id), None)
+    if not albaran:
+        flash("No se encontró el albarán a eliminar.", "error")
+        return redirect(url_for("albaranes"))
+
+    delivery_notes = [nota for nota in delivery_notes if nota["id"] != albaran_id]
+
+    with get_connection() as conn:
+        conn.execute("DELETE FROM delivery_notes WHERE id = ?", (albaran_id,))
+
+    flash("El albarán se eliminó correctamente.", "success")
+    return redirect(url_for("albaranes"))
 
 
 @app.route("/albaranes/<int:albaran_id>")

@@ -54,7 +54,12 @@
                         <td>{{ '€{:.2f}'.format(albaran.total_pvo) }}</td>
                         <td>{{ '€{:.2f}'.format(albaran.total_pvp) }}</td>
                         <td>
-                            <a class="button-link" style="padding: 0.4rem 0.65rem;" href="{{ url_for('albaran_detalle', albaran_id=albaran.id) }}">Ver detalle</a>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <a class="button-link" style="padding: 0.4rem 0.65rem;" href="{{ url_for('albaran_detalle', albaran_id=albaran.id) }}">Ver detalle</a>
+                                <form method="post" action="{{ url_for('eliminar_albaran', albaran_id=albaran.id) }}" onsubmit="return confirm('¿Seguro que quieres eliminar el albarán {{ albaran.numero }}?');">
+                                    <button type="submit" class="button-link" style="background-color: #b3261e; color: white; border: none; padding: 0.4rem 0.65rem; border-radius: 6px; cursor: pointer;">Eliminar</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 {% endfor %}
