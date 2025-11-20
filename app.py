@@ -290,10 +290,11 @@ def _init_db_schema():
 
             CREATE TABLE IF NOT EXISTS inventory_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                codigo TEXT UNIQUE NOT NULL,
+                codigo TEXT NOT NULL,
                 nombre TEXT NOT NULL,
                 cantidad INTEGER NOT NULL,
-                ubicacion TEXT NOT NULL
+                ubicacion TEXT NOT NULL,
+                UNIQUE(codigo, ubicacion)
             );
 
             CREATE TABLE IF NOT EXISTS purchase_orders (
@@ -347,6 +348,36 @@ def _init_db_schema():
                 gaveta_tipo TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+            """
+        )
+
+
+def _migrate_inventory_schema():
+    with get_connection() as conn:
+        schema_row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'inventory_items'"
+        ).fetchone()
+        if not schema_row:
+            return
+
+        schema_sql = schema_row[0] or ""
+        if "codigo TEXT UNIQUE" not in schema_sql:
+            return
+
+        conn.executescript(
+            """
+            ALTER TABLE inventory_items RENAME TO inventory_items_old;
+            CREATE TABLE inventory_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT NOT NULL,
+                nombre TEXT NOT NULL,
+                cantidad INTEGER NOT NULL,
+                ubicacion TEXT NOT NULL,
+                UNIQUE(codigo, ubicacion)
+            );
+            INSERT INTO inventory_items (codigo, nombre, cantidad, ubicacion)
+            SELECT codigo, nombre, cantidad, ubicacion FROM inventory_items_old;
+            DROP TABLE inventory_items_old;
             """
         )
 
@@ -464,13 +495,14 @@ def _load_data():
 
         inventory_items = [
             {
+                "id": row["id"],
                 "codigo": row["codigo"],
                 "nombre": row["nombre"],
                 "cantidad": row["cantidad"],
                 "ubicacion": row["ubicacion"],
             }
             for row in conn.execute(
-                "SELECT codigo, nombre, cantidad, ubicacion FROM inventory_items ORDER BY codigo"
+                "SELECT id, codigo, nombre, cantidad, ubicacion FROM inventory_items ORDER BY codigo"
             )
         ]
 
@@ -566,11 +598,38 @@ def _load_data():
 
 def ensure_database():
     _init_db_schema()
+    _migrate_inventory_schema()
     _seed_if_empty()
     _load_data()
 
 
 ensure_database()
+
+
+def _articulos_por_codigo(codigo: str):
+    return [
+        item for item in inventory_items if item["codigo"].lower() == codigo.lower()
+    ]
+
+
+def _resumen_inventario():
+    resumen = {}
+    for item in inventory_items:
+        clave = item["codigo"].lower()
+        if clave not in resumen:
+            resumen[clave] = {
+                "codigo": item["codigo"],
+                "nombre": item["nombre"],
+                "total_cantidad": 0,
+                "ubicaciones": [],
+            }
+
+        resumen[clave]["total_cantidad"] += item["cantidad"]
+        resumen[clave]["ubicaciones"].append(
+            {"ubicacion": item["ubicacion"], "cantidad": item["cantidad"]}
+        )
+
+    return sorted(resumen.values(), key=lambda entry: entry["codigo"].lower())
 
 
 @app.route("/")
@@ -1235,36 +1294,179 @@ def buscar_articulos():
 
 @app.route("/mostrar-stock")
 def mostrar_stock():
-    return render_template("mostrar_stock.html", inventario=inventory_items)
+    inventario_resumido = _resumen_inventario()
+    return render_template("mostrar_stock.html", inventario=inventario_resumido)
 
 
 @app.route("/inventario/<codigo>/actualizar", methods=["POST"])
 def actualizar_inventario(codigo: str):
-    item = next((articulo for articulo in inventory_items if articulo["codigo"].lower() == codigo.lower()), None)
-    if not item:
+    if not _articulos_por_codigo(codigo):
         flash("No se encontró el artículo solicitado.", "error")
         return redirect(url_for("mostrar_stock"))
 
-    nuevo_nombre = request.form.get("nombre", "").strip()
-    nueva_cantidad = request.form.get("cantidad", type=int)
-    nueva_ubicacion = request.form.get("ubicacion", "").strip()
+    flash("Gestiona este artículo desde la vista de detalle.", "info")
+    return redirect(url_for("inventario_detalle", codigo=codigo))
 
-    if not nuevo_nombre or nueva_cantidad is None or nueva_cantidad < 0 or not nueva_ubicacion:
-        flash("Completa nombre, cantidad (0 o superior) y ubicación para actualizar el artículo.", "error")
+
+@app.route("/inventario/<codigo>")
+def inventario_detalle(codigo: str):
+    articulos = _articulos_por_codigo(codigo)
+    if not articulos:
+        flash("No se encontró el artículo solicitado.", "error")
         return redirect(url_for("mostrar_stock"))
 
-    item["nombre"] = nuevo_nombre
-    item["cantidad"] = nueva_cantidad
-    item["ubicacion"] = nueva_ubicacion
+    total_unidades = sum(item["cantidad"] for item in articulos)
+    ubicaciones = sorted(articulos, key=lambda item: item["ubicacion"].lower())
+    articulo = {"codigo": articulos[0]["codigo"], "nombre": articulos[0]["nombre"]}
+
+    return render_template(
+        "inventario_detalle.html",
+        articulo=articulo,
+        ubicaciones=ubicaciones,
+        total_unidades=total_unidades,
+    )
+
+
+@app.route("/inventario/<codigo>/editar", methods=["POST"])
+def actualizar_articulo(codigo: str):
+    articulos = _articulos_por_codigo(codigo)
+    if not articulos:
+        flash("No se encontró el artículo solicitado.", "error")
+        return redirect(url_for("mostrar_stock"))
+
+    nuevo_codigo = request.form.get("codigo", "").strip()
+    nuevo_nombre = request.form.get("nombre", "").strip()
+
+    if not nuevo_codigo or not nuevo_nombre:
+        flash("Indica código y nombre para actualizar el artículo.", "error")
+        return redirect(url_for("inventario_detalle", codigo=codigo))
+
+    ubicaciones_actuales = {item["ubicacion"].lower() for item in articulos}
+    conflicto = next(
+        (
+            item
+            for item in inventory_items
+            if item["codigo"].lower() == nuevo_codigo.lower()
+            and item["codigo"].lower() != codigo.lower()
+            and item["ubicacion"].lower() in ubicaciones_actuales
+        ),
+        None,
+    )
+    if conflicto:
+        flash(
+            "Ya existe un artículo con ese código en alguna de las ubicaciones actuales.",
+            "error",
+        )
+        return redirect(url_for("inventario_detalle", codigo=codigo))
+
+    for item in articulos:
+        item["codigo"] = nuevo_codigo
+        item["nombre"] = nuevo_nombre
 
     with get_connection() as conn:
         conn.execute(
-            "UPDATE inventory_items SET nombre = ?, cantidad = ?, ubicacion = ? WHERE lower(codigo) = ?",
-            (nuevo_nombre, nueva_cantidad, nueva_ubicacion, codigo.lower()),
+            "UPDATE inventory_items SET codigo = ?, nombre = ? WHERE lower(codigo) = ?",
+            (nuevo_codigo, nuevo_nombre, codigo.lower()),
         )
 
-    flash(f"Artículo {codigo} actualizado correctamente.", "success")
-    return redirect(url_for("mostrar_stock"))
+    flash("Datos del artículo actualizados correctamente.", "success")
+    return redirect(url_for("inventario_detalle", codigo=nuevo_codigo))
+
+
+@app.route("/inventario/<codigo>/ubicaciones/<int:item_id>/actualizar", methods=["POST"])
+def actualizar_existencia(codigo: str, item_id: int):
+    articulos = _articulos_por_codigo(codigo)
+    if not articulos:
+        flash("No se encontró el artículo solicitado.", "error")
+        return redirect(url_for("mostrar_stock"))
+
+    item = next((articulo for articulo in articulos if articulo["id"] == item_id), None)
+    if not item:
+        flash("No se encontró la ubicación indicada.", "error")
+        return redirect(url_for("inventario_detalle", codigo=codigo))
+
+    nueva_ubicacion = request.form.get("ubicacion", "").strip()
+    nueva_cantidad = request.form.get("cantidad", type=int)
+
+    if not nueva_ubicacion or nueva_cantidad is None or nueva_cantidad < 0:
+        flash("Indica una ubicación y una cantidad mayor o igual a 0.", "error")
+        return redirect(url_for("inventario_detalle", codigo=codigo))
+
+    conflicto = next(
+        (
+            articulo
+            for articulo in inventory_items
+            if articulo["codigo"].lower() == codigo.lower()
+            and articulo["ubicacion"].lower() == nueva_ubicacion.lower()
+            and articulo["id"] != item_id
+        ),
+        None,
+    )
+    if conflicto:
+        flash("Ya existe stock de este artículo en esa ubicación.", "error")
+        return redirect(url_for("inventario_detalle", codigo=codigo))
+
+    item["ubicacion"] = nueva_ubicacion
+    item["cantidad"] = nueva_cantidad
+    item["nombre"] = articulos[0]["nombre"]
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE inventory_items SET cantidad = ?, ubicacion = ?, nombre = ? WHERE id = ?",
+            (nueva_cantidad, nueva_ubicacion, item["nombre"], item_id),
+        )
+
+    flash("Stock actualizado para la ubicación seleccionada.", "success")
+    return redirect(url_for("inventario_detalle", codigo=codigo))
+
+
+@app.route("/inventario/<codigo>/ubicaciones/agregar", methods=["POST"])
+def agregar_existencia(codigo: str):
+    articulos = _articulos_por_codigo(codigo)
+    if not articulos:
+        flash("No se encontró el artículo solicitado.", "error")
+        return redirect(url_for("mostrar_stock"))
+
+    ubicacion = request.form.get("ubicacion", "").strip()
+    cantidad = request.form.get("cantidad", type=int)
+
+    if not ubicacion or cantidad is None or cantidad < 0:
+        flash("Indica ubicación y cantidad mayor o igual a 0.", "error")
+        return redirect(url_for("inventario_detalle", codigo=codigo))
+
+    existente = next(
+        (
+            articulo
+            for articulo in inventory_items
+            if articulo["codigo"].lower() == codigo.lower()
+            and articulo["ubicacion"].lower() == ubicacion.lower()
+        ),
+        None,
+    )
+    if existente:
+        flash("Ya existe stock de este artículo en esa ubicación.", "error")
+        return redirect(url_for("inventario_detalle", codigo=codigo))
+
+    articulo_base = articulos[0]
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "INSERT INTO inventory_items (codigo, nombre, cantidad, ubicacion) VALUES (?, ?, ?, ?)",
+            (articulo_base["codigo"], articulo_base["nombre"], cantidad, ubicacion),
+        )
+        nuevo_id = cursor.lastrowid
+
+    inventory_items.append(
+        {
+            "id": nuevo_id,
+            "codigo": articulo_base["codigo"],
+            "nombre": articulo_base["nombre"],
+            "cantidad": cantidad,
+            "ubicacion": ubicacion,
+        }
+    )
+
+    flash("Ubicación añadida al artículo.", "success")
+    return redirect(url_for("inventario_detalle", codigo=codigo))
 
 
 @app.route("/panel-control")

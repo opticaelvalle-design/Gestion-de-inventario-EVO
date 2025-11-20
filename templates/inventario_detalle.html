@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Detalle de inventario · {{ articulo.codigo }}{% endblock %}
+{% block content %}
+<h2 class="section-title">Detalle del artículo {{ articulo.codigo }}</h2>
+<p>Gestiona la información del artículo y reparte sus unidades por ubicación desde esta vista.</p>
+
+<div class="card">
+    <h3>Datos generales</h3>
+    <p><strong>Total de unidades:</strong> {{ total_unidades }}</p>
+    <form method="post" action="{{ url_for('actualizar_articulo', codigo=articulo.codigo) }}" class="inline-form">
+        <label>Código
+            <input type="text" name="codigo" value="{{ articulo.codigo }}" required />
+        </label>
+        <label>Nombre
+            <input type="text" name="nombre" value="{{ articulo.nombre }}" required />
+        </label>
+        <button type="submit">Guardar cambios</button>
+    </form>
+</div>
+
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Ubicación</th>
+                <th style="width: 140px;">Cantidad</th>
+                <th style="width: 220px;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ubicacion in ubicaciones %}
+                <tr>
+                    <td>{{ ubicacion.ubicacion }}</td>
+                    <td>{{ ubicacion.cantidad }}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('actualizar_existencia', codigo=articulo.codigo, item_id=ubicacion.id) }}" class="inline-form">
+                            <input type="text" name="ubicacion" value="{{ ubicacion.ubicacion }}" aria-label="Ubicación" required />
+                            <input type="number" name="cantidad" value="{{ ubicacion.cantidad }}" min="0" aria-label="Cantidad" required />
+                            <button type="submit" class="button-link">Actualizar</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h3>Añadir ubicación</h3>
+    <form method="post" action="{{ url_for('agregar_existencia', codigo=articulo.codigo) }}" class="inline-form">
+        <input type="text" name="ubicacion" placeholder="Nombre de la ubicación" required />
+        <input type="number" name="cantidad" placeholder="Cantidad" min="0" required />
+        <button type="submit">Agregar</button>
+    </form>
+</div>
+{% endblock %}
