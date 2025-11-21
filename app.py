@@ -219,6 +219,48 @@ INITIAL_DELIVERY_NOTES = [
     },
 ]
 
+INITIAL_OPTICA_STOCK = {
+    "Blanca": [
+        {
+            "codigo": "OP-1001",
+            "nombre": "Gafa metalica clásica",
+            "tipo": "Montura",
+            "precio_mayor": 42.0,
+            "precio_pvp": 89.0,
+            "cantidad": 12,
+        },
+        {
+            "codigo": "OP-2002",
+            "nombre": "Lente contacto diaria",
+            "tipo": "Lentes",
+            "precio_mayor": 18.0,
+            "precio_pvp": 36.0,
+            "cantidad": 40,
+        },
+    ],
+    "Abarán": [
+        {
+            "codigo": "OP-3003",
+            "nombre": "Gafa pasta retro",
+            "tipo": "Montura",
+            "precio_mayor": 38.0,
+            "precio_pvp": 79.0,
+            "cantidad": 8,
+        }
+    ],
+    "Bajo": [
+        {
+            "codigo": "OP-4004",
+            "nombre": "Spray antivaho",
+            "tipo": "Accesorio",
+            "precio_mayor": 4.5,
+            "precio_pvp": 9.5,
+            "cantidad": 22,
+        }
+    ],
+    "Murcia": [],
+}
+
 storage_locations = []
 inventory_items = []
 purchase_orders = []
@@ -226,6 +268,92 @@ delivery_notes = []
 gaveta_asignaciones = {}
 gaveta_secuencia = 1
 active_delivery_note_id = None
+
+OPTICA_BRANCHES = ["Blanca", "Abarán", "Bajo", "Murcia"]
+optica_inventory = {sucursal: [] for sucursal in OPTICA_BRANCHES}
+
+
+def _registrar_movimiento_optica(producto: dict, sucursal: str, descripcion: str):
+    marca_tiempo = datetime.now().strftime("%Y-%m-%d %H:%M")
+    producto.setdefault("movimientos", []).append(
+        {"fecha": marca_tiempo, "sucursal": sucursal, "descripcion": descripcion}
+    )
+
+
+def _asegurar_sucursal_optica(sucursal: str):
+    if sucursal not in optica_inventory:
+        optica_inventory[sucursal] = []
+    return optica_inventory[sucursal]
+
+
+def _buscar_producto_optica(sucursal: str, codigo: str):
+    inventario = _asegurar_sucursal_optica(sucursal)
+    return next(
+        (item for item in inventario if item["codigo"].lower() == codigo.lower()), None
+    )
+
+
+def _crear_producto_optica(
+    sucursal: str,
+    codigo: str,
+    nombre: str,
+    tipo: str,
+    precio_mayor: float,
+    precio_pvp: float,
+    cantidad: int,
+):
+    producto = {
+        "codigo": codigo,
+        "nombre": nombre,
+        "tipo": tipo,
+        "precio_mayor": precio_mayor,
+        "precio_pvp": precio_pvp,
+        "cantidad": cantidad,
+        "movimientos": [],
+    }
+    _registrar_movimiento_optica(
+        producto,
+        sucursal,
+        f"Alta inicial con {cantidad} uds en {sucursal}",
+    )
+    _asegurar_sucursal_optica(sucursal).append(producto)
+    return producto
+
+
+def _traspasar_a_sucursal(origen: str, destino: str, producto: dict, cantidad: int):
+    destino_producto = _buscar_producto_optica(destino, producto["codigo"])
+    if not destino_producto:
+        destino_producto = _crear_producto_optica(
+            destino,
+            producto["codigo"],
+            producto["nombre"],
+            producto.get("tipo", ""),
+            float(producto.get("precio_mayor", 0)),
+            float(producto.get("precio_pvp", 0)),
+            0,
+        )
+    destino_producto["cantidad"] += cantidad
+    _registrar_movimiento_optica(
+        destino_producto,
+        destino,
+        f"Recibidas {cantidad} uds desde {origen}",
+    )
+
+
+def _inicializar_optica_demo():
+    for sucursal, productos in INITIAL_OPTICA_STOCK.items():
+        inventario = _asegurar_sucursal_optica(sucursal)
+        inventario.clear()
+        for producto in productos:
+            _crear_producto_optica(
+                sucursal,
+                producto["codigo"],
+                producto["nombre"],
+                producto.get("tipo", ""),
+                float(producto.get("precio_mayor", 0)),
+                float(producto.get("precio_pvp", 0)),
+                int(producto.get("cantidad", 0)),
+            )
 
 
 def _persistir_linea_pedido(pedido_id: int, linea: dict):
@@ -604,6 +732,7 @@ def ensure_database():
 
 
 ensure_database()
+_inicializar_optica_demo()
 
 
 def _articulos_por_codigo(codigo: str):
@@ -630,6 +759,155 @@ def _resumen_inventario():
         )
 
     return sorted(resumen.values(), key=lambda entry: entry["codigo"].lower())
+
+
+@app.route("/stock-opticas", methods=["GET", "POST"])
+def stock_opticas():
+    sucursal = (
+        request.form.get("sucursal_actual")
+        or request.args.get("sucursal")
+        or OPTICA_BRANCHES[0]
+    )
+    if sucursal not in OPTICA_BRANCHES:
+        sucursal = OPTICA_BRANCHES[0]
+
+    if request.method == "POST":
+        accion = request.form.get("accion")
+        if accion == "nuevo_producto":
+            codigo = request.form.get("codigo", "").strip()
+            nombre = request.form.get("nombre", "").strip()
+            tipo = request.form.get("tipo", "").strip()
+            precio_mayor = request.form.get("precio_mayor", type=float, default=0.0)
+            precio_pvp = request.form.get("precio_pvp", type=float, default=0.0)
+            cantidad = request.form.get("cantidad", type=int, default=0)
+
+            if not codigo or not nombre or cantidad <= 0:
+                flash("Introduce código, nombre y una cantidad válida.", "error")
+            else:
+                existente = _buscar_producto_optica(sucursal, codigo)
+                if existente:
+                    existente.update(
+                        {
+                            "nombre": nombre,
+                            "tipo": tipo,
+                            "precio_mayor": precio_mayor,
+                            "precio_pvp": precio_pvp,
+                        }
+                    )
+                    existente["cantidad"] += cantidad
+                    _registrar_movimiento_optica(
+                        existente,
+                        sucursal,
+                        f"Actualizado y añadidas {cantidad} uds",
+                    )
+                else:
+                    _crear_producto_optica(
+                        sucursal, codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad
+                    )
+                flash("Producto guardado en el stock de ópticas.", "success")
+            return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+        if accion == "ajustar":
+            codigo = request.form.get("codigo", "").strip()
+            cantidad = request.form.get("cantidad", type=int, default=0)
+            producto = _buscar_producto_optica(sucursal, codigo)
+            if not producto:
+                flash("No se encontró el producto en la sucursal.", "error")
+            elif cantidad <= 0:
+                flash("Indica unidades válidas para añadir.", "warning")
+            else:
+                producto["cantidad"] += cantidad
+                _registrar_movimiento_optica(
+                    producto,
+                    sucursal,
+                    f"Añadidas {cantidad} uds",
+                )
+                flash("Stock actualizado.", "success")
+            return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+        if accion == "retirar":
+            codigo = request.form.get("codigo", "").strip()
+            cantidad = request.form.get("cantidad", type=int, default=0)
+            motivo = request.form.get("motivo", "").strip() or "Sin motivo"
+            producto = _buscar_producto_optica(sucursal, codigo)
+            if not producto:
+                flash("No se encontró el producto en la sucursal.", "error")
+            elif cantidad <= 0:
+                flash("Indica unidades válidas para retirar.", "warning")
+            elif producto["cantidad"] < cantidad:
+                flash("No hay suficientes unidades para retirar.", "error")
+            else:
+                producto["cantidad"] -= cantidad
+                _registrar_movimiento_optica(
+                    producto,
+                    sucursal,
+                    f"Retiradas {cantidad} uds. Motivo: {motivo}",
+                )
+                flash("Retirada registrada.", "success")
+            return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+        if accion == "transferir":
+            codigo = request.form.get("codigo", "").strip()
+            destino = request.form.get("destino")
+            cantidad = request.form.get("cantidad", type=int, default=0)
+            producto = _buscar_producto_optica(sucursal, codigo)
+            if destino not in OPTICA_BRANCHES:
+                flash("Selecciona una sucursal destino válida.", "warning")
+            elif destino == sucursal:
+                flash("Elige una sucursal distinta para transferir.", "warning")
+            elif not producto:
+                flash("No se encontró el producto en la sucursal.", "error")
+            elif cantidad <= 0:
+                flash("Indica unidades válidas para transferir.", "warning")
+            elif producto["cantidad"] < cantidad:
+                flash("No hay suficientes unidades para transferir.", "error")
+            else:
+                producto["cantidad"] -= cantidad
+                _registrar_movimiento_optica(
+                    producto,
+                    sucursal,
+                    f"Transferidas {cantidad} uds a {destino}",
+                )
+                _traspasar_a_sucursal(sucursal, destino, producto, cantidad)
+                flash("Transferencia completada.", "success")
+            return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+        if accion == "lectura_codigo":
+            codigo = request.form.get("codigo_barras", "").strip()
+            if not codigo:
+                flash("Escanea un código válido.", "warning")
+            else:
+                producto = _buscar_producto_optica(sucursal, codigo)
+                if not producto:
+                    producto = _crear_producto_optica(
+                        sucursal,
+                        codigo,
+                        f"Artículo {codigo}",
+                        "Código de barras",
+                        0.0,
+                        0.0,
+                        0,
+                    )
+                producto["cantidad"] += 1
+                _registrar_movimiento_optica(
+                    producto,
+                    sucursal,
+                    "Entrada por lectura de código de barras",
+                )
+                flash("Artículo registrado por código de barras.", "success")
+            return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+    productos = sorted(
+        _asegurar_sucursal_optica(sucursal), key=lambda item: item["nombre"].lower()
+    )
+    totales_sucursal = sum(item["cantidad"] for item in productos)
+    return render_template(
+        "stock_opticas.html",
+        sucursal=sucursal,
+        sucursales=OPTICA_BRANCHES,
+        productos=productos,
+        totales_sucursal=totales_sucursal,
+    )
 
 
 @app.route("/")

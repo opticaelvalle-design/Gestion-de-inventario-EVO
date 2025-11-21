@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}Stock ópticas · Gestión de Inventario EVO{% endblock %}
+{% block content %}
+<section class="card" style="gap: 1rem;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; align-items: center;">
+        <div>
+            <h2 style="margin: 0;">Stock Ópticas</h2>
+            <p style="margin: 0.35rem 0 0; color: #4b4b4b;">Control independiente para las cuatro sucursales.</p>
+        </div>
+        <form method="get" style="display: flex; gap: 0.5rem; align-items: center;">
+            <label for="sucursal" style="margin: 0; font-weight: 600;">Sucursal</label>
+            <select name="sucursal" id="sucursal" onchange="this.form.submit()">
+                {% for nombre in sucursales %}
+                    <option value="{{ nombre }}" {% if nombre == sucursal %}selected{% endif %}>{{ nombre }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
+        <div class="stat-card" style="background-color: #f5f6fa; box-shadow: none; border: 1px solid #dcdde1;">
+            <h3 style="margin-top: 0; color: #273c75;">Resumen sucursal</h3>
+            <p style="margin: 0;">Productos: <strong>{{ productos|length }}</strong></p>
+            <p style="margin: 0.25rem 0 0;">Unidades totales: <strong>{{ totales_sucursal }}</strong></p>
+        </div>
+        <div style="background: #fff; border-radius: 12px; padding: 1rem; border: 1px dashed #40739e;">
+            <form method="post" id="lectura-form" style="margin: 0; display: grid; gap: 0.5rem;">
+                <input type="hidden" name="accion" value="lectura_codigo">
+                <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                <label for="codigo_barras" style="font-weight: 600;">Entrada rápida por código de barras</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" name="codigo_barras" id="codigo_barras" placeholder="Escanea o escribe el código" required>
+                    <button type="submit">Registrar</button>
+                </div>
+                <small style="color: #718093;">Tras pulsar Enter el campo se limpia para la siguiente lectura.</small>
+            </form>
+        </div>
+    </div>
+</section>
+
+<section class="card" style="margin-top: 1.5rem;">
+    <h3 style="margin-top: 0;">Añadir producto a {{ sucursal }}</h3>
+    <form method="post" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end;">
+        <input type="hidden" name="accion" value="nuevo_producto">
+        <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+        <div>
+            <label for="codigo">Código</label>
+            <input type="text" id="codigo" name="codigo" placeholder="Ej: OP-5005" required>
+        </div>
+        <div>
+            <label for="nombre">Nombre</label>
+            <input type="text" id="nombre" name="nombre" placeholder="Nombre comercial" required>
+        </div>
+        <div>
+            <label for="tipo">Tipo</label>
+            <input type="text" id="tipo" name="tipo" placeholder="Montura, lente...">
+        </div>
+        <div>
+            <label for="precio_mayor">Precio mayorista (€)</label>
+            <input type="number" step="0.01" id="precio_mayor" name="precio_mayor" value="0">
+        </div>
+        <div>
+            <label for="precio_pvp">Precio PVP (€)</label>
+            <input type="number" step="0.01" id="precio_pvp" name="precio_pvp" value="0">
+        </div>
+        <div>
+            <label for="cantidad">Cantidad</label>
+            <input type="number" id="cantidad" name="cantidad" min="1" value="1" required>
+        </div>
+        <div>
+            <button type="submit">Guardar producto</button>
+        </div>
+    </form>
+</section>
+
+<section style="margin-top: 1.5rem;">
+    <table>
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Unidades</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if productos %}
+                {% for producto in productos %}
+                    <tr>
+                        <td>{{ producto.codigo }}</td>
+                        <td>{{ producto.nombre }}</td>
+                        <td>{{ producto.tipo or 'N/D' }}</td>
+                        <td><strong>{{ producto.cantidad }}</strong></td>
+                        <td style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.35rem;">
+                            <form method="post" class="inline-form">
+                                <input type="hidden" name="accion" value="ajustar">
+                                <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                                <input type="hidden" name="codigo" value="{{ producto.codigo }}">
+                                <label style="font-weight: 600;">Añadir</label>
+                                <input type="number" name="cantidad" min="1" value="1">
+                                <button type="submit">Añadir</button>
+                            </form>
+                            <div class="inline-form">
+                                <label style="font-weight: 600;">Retirar</label>
+                                <input type="number" name="cantidad" min="1" value="1" data-cantidad max="{{ producto.cantidad }}">
+                                <button type="button" class="button-link" data-retirar data-codigo="{{ producto.codigo }}" data-nombre="{{ producto.nombre }}">Retirar</button>
+                            </div>
+                            <form method="post" class="inline-form">
+                                <input type="hidden" name="accion" value="transferir">
+                                <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                                <input type="hidden" name="codigo" value="{{ producto.codigo }}">
+                                <label style="font-weight: 600;">Transferir</label>
+                                <select name="destino">
+                                    {% for destino in sucursales %}
+                                        <option value="{{ destino }}" {% if destino == sucursal %}disabled{% endif %}>{{ destino }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="number" name="cantidad" min="1" value="1">
+                                <button type="submit">Transferir</button>
+                            </form>
+                            <button type="button" class="button-link" data-detalle data-producto='{{ producto | tojson }}' data-sucursal="{{ sucursal }}">Ver detalle</button>
+                        </td>
+                    </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" class="empty-state">Aún no hay productos en esta sucursal.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</section>
+
+<div id="motivo-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); align-items: center; justify-content: center;">
+    <div style="background: #fff; padding: 1.5rem; border-radius: 12px; max-width: 420px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
+        <h3 style="margin-top: 0;">Motivo de retirada</h3>
+        <p style="margin-top: 0; color: #4b4b4b;">Selecciona o escribe el motivo para retirar unidades.</p>
+        <div style="display: grid; gap: 0.5rem;">
+            <button type="button" class="button-link" data-motivo>Amazon</button>
+            <button type="button" class="button-link" data-motivo>Avelino</button>
+            <button type="button" class="button-link" data-motivo>Privé</button>
+            <button type="button" class="button-link" data-motivo>Miravia</button>
+            <div style="display: grid; gap: 0.35rem;">
+                <label for="motivo_personalizado" style="font-weight: 600;">Otro motivo</label>
+                <input type="text" id="motivo_personalizado" placeholder="Describe el motivo">
+            </div>
+        </div>
+        <form method="post" id="motivo-form" style="margin-top: 1rem; display: grid; gap: 0.35rem;">
+            <input type="hidden" name="accion" value="retirar">
+            <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+            <input type="hidden" name="codigo" id="motivo-codigo">
+            <input type="hidden" name="motivo" id="motivo-valor">
+            <label for="motivo-cantidad" style="font-weight: 600;">Unidades a retirar</label>
+            <input type="number" name="cantidad" id="motivo-cantidad" min="1" value="1">
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button type="button" class="button-link" id="cancelar-motivo" style="background: #dcdde1; color: #2f3640;">Cancelar</button>
+                <button type="submit">Confirmar retirada</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="detalle-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); align-items: center; justify-content: center;">
+    <div style="background: #fff; padding: 1.5rem; border-radius: 12px; max-width: 600px; width: 100%; max-height: 90vh; overflow: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
+        <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: center;">
+            <div>
+                <h3 id="detalle-titulo" style="margin: 0;"></h3>
+                <p id="detalle-subtitulo" style="margin: 0.25rem 0 0; color: #4b4b4b;"></p>
+            </div>
+            <button type="button" class="button-link" id="cerrar-detalle" style="background: #dcdde1; color: #2f3640;">Cerrar</button>
+        </div>
+        <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+            <div style="background: #f5f6fa; padding: 0.75rem; border-radius: 8px;">
+                <strong>Código</strong>
+                <p id="detalle-codigo" style="margin: 0.25rem 0 0;"></p>
+            </div>
+            <div style="background: #f5f6fa; padding: 0.75rem; border-radius: 8px;">
+                <strong>Tipo</strong>
+                <p id="detalle-tipo" style="margin: 0.25rem 0 0;"></p>
+            </div>
+            <div style="background: #f5f6fa; padding: 0.75rem; border-radius: 8px;">
+                <strong>Precio mayorista</strong>
+                <p id="detalle-mayor" style="margin: 0.25rem 0 0;"></p>
+            </div>
+            <div style="background: #f5f6fa; padding: 0.75rem; border-radius: 8px;">
+                <strong>Precio PVP</strong>
+                <p id="detalle-pvp" style="margin: 0.25rem 0 0;"></p>
+            </div>
+        </div>
+        <div style="margin-top: 1rem;">
+            <strong>Historial de movimientos</strong>
+            <ul id="detalle-historial" style="padding-left: 1.25rem; margin-top: 0.5rem;"></ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const motivoModal = document.getElementById('motivo-modal');
+    const motivoButtons = document.querySelectorAll('[data-retirar]');
+    const motivoOptions = document.querySelectorAll('[data-motivo]');
+    const motivoForm = document.getElementById('motivo-form');
+    const motivoCodigo = document.getElementById('motivo-codigo');
+    const motivoValor = document.getElementById('motivo-valor');
+    const motivoCantidad = document.getElementById('motivo-cantidad');
+    const cancelarMotivo = document.getElementById('cancelar-motivo');
+    const motivoPersonalizado = document.getElementById('motivo_personalizado');
+
+    motivoButtons.forEach(btn => {
+        btn.addEventListener('click', (event) => {
+            const cantidadInput = event.target.parentElement.querySelector('[data-cantidad]');
+            motivoCodigo.value = btn.dataset.codigo;
+            motivoCantidad.value = cantidadInput ? cantidadInput.value : 1;
+            motivoCantidad.max = cantidadInput ? cantidadInput.max : '';
+            motivoValor.value = '';
+            motivoPersonalizado.value = '';
+            motivoModal.style.display = 'flex';
+        });
+    });
+
+    motivoOptions.forEach(op => {
+        op.addEventListener('click', () => {
+            motivoValor.value = op.textContent;
+            motivoForm.submit();
+        });
+    });
+
+    motivoForm.addEventListener('submit', () => {
+        if (!motivoValor.value) {
+            motivoValor.value = motivoPersonalizado.value.trim() || 'Sin motivo';
+        }
+    });
+
+    cancelarMotivo.addEventListener('click', () => {
+        motivoModal.style.display = 'none';
+    });
+
+    const detalleModal = document.getElementById('detalle-modal');
+    const detalleBotones = document.querySelectorAll('[data-detalle]');
+    const detalleTitulo = document.getElementById('detalle-titulo');
+    const detalleSubtitulo = document.getElementById('detalle-subtitulo');
+    const detalleCodigo = document.getElementById('detalle-codigo');
+    const detalleTipo = document.getElementById('detalle-tipo');
+    const detalleMayor = document.getElementById('detalle-mayor');
+    const detallePvp = document.getElementById('detalle-pvp');
+    const detalleHistorial = document.getElementById('detalle-historial');
+    const cerrarDetalle = document.getElementById('cerrar-detalle');
+
+    detalleBotones.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const data = JSON.parse(btn.dataset.producto);
+            detalleTitulo.textContent = data.nombre;
+            detalleSubtitulo.textContent = `Sucursal: ${btn.dataset.sucursal}`;
+            detalleCodigo.textContent = data.codigo;
+            detalleTipo.textContent = data.tipo || 'N/D';
+            detalleMayor.textContent = `${(data.precio_mayor || 0).toFixed(2)} €`;
+            detallePvp.textContent = `${(data.precio_pvp || 0).toFixed(2)} €`;
+            detalleHistorial.innerHTML = '';
+            (data.movimientos || []).forEach(entry => {
+                const li = document.createElement('li');
+                li.textContent = `${entry.fecha} · ${entry.descripcion}`;
+                detalleHistorial.appendChild(li);
+            });
+            if (!data.movimientos || data.movimientos.length === 0) {
+                const li = document.createElement('li');
+                li.textContent = 'Sin movimientos registrados';
+                detalleHistorial.appendChild(li);
+            }
+            detalleModal.style.display = 'flex';
+        });
+    });
+
+    cerrarDetalle.addEventListener('click', () => {
+        detalleModal.style.display = 'none';
+    });
+
+    document.getElementById('lectura-form').addEventListener('submit', () => {
+        const input = document.getElementById('codigo_barras');
+        setTimeout(() => input.value = '', 50);
+    });
+</script>
+{% endblock %}
