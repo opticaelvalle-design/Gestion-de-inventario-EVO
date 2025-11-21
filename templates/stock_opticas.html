@@ -91,33 +91,18 @@
                         <td>{{ producto.nombre }}</td>
                         <td>{{ producto.tipo or 'N/D' }}</td>
                         <td><strong>{{ producto.cantidad }}</strong></td>
-                        <td style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.35rem;">
-                            <form method="post" class="inline-form">
+                        <td style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.35rem; align-items: center;">
+                            <form method="post" class="inline-form" data-accion="ajustar">
                                 <input type="hidden" name="accion" value="ajustar">
                                 <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
                                 <input type="hidden" name="codigo" value="{{ producto.codigo }}">
-                                <label style="font-weight: 600;">Añadir</label>
-                                <input type="number" name="cantidad" min="1" value="1">
-                                <button type="submit">Añadir</button>
+                                <input type="hidden" name="cantidad" value="1">
+                                <button type="button" class="button-link" data-anadir data-codigo="{{ producto.codigo }}">Añadir</button>
                             </form>
                             <div class="inline-form">
-                                <label style="font-weight: 600;">Retirar</label>
-                                <input type="number" name="cantidad" min="1" value="1" data-cantidad max="{{ producto.cantidad }}">
-                                <button type="button" class="button-link" data-retirar data-codigo="{{ producto.codigo }}" data-nombre="{{ producto.nombre }}">Retirar</button>
+                                <button type="button" class="button-link" data-retirar data-codigo="{{ producto.codigo }}" data-nombre="{{ producto.nombre }}" data-max="{{ producto.cantidad }}">Retirar</button>
                             </div>
-                            <form method="post" class="inline-form">
-                                <input type="hidden" name="accion" value="transferir">
-                                <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-                                <input type="hidden" name="codigo" value="{{ producto.codigo }}">
-                                <label style="font-weight: 600;">Transferir</label>
-                                <select name="destino">
-                                    {% for destino in sucursales %}
-                                        <option value="{{ destino }}" {% if destino == sucursal %}disabled{% endif %}>{{ destino }}</option>
-                                    {% endfor %}
-                                </select>
-                                <input type="number" name="cantidad" min="1" value="1">
-                                <button type="submit">Transferir</button>
-                            </form>
+                            <button type="button" class="button-link" data-transferir data-codigo="{{ producto.codigo }}" data-max="{{ producto.cantidad }}">Transferir</button>
                             <button type="button" class="button-link" data-detalle data-producto='{{ producto | tojson }}' data-sucursal="{{ sucursal }}">Ver detalle</button>
                         </td>
                     </tr>
@@ -155,6 +140,30 @@
             <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
                 <button type="button" class="button-link" id="cancelar-motivo" style="background: #dcdde1; color: #2f3640;">Cancelar</button>
                 <button type="submit">Confirmar retirada</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="transfer-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); align-items: center; justify-content: center;">
+    <div style="background: #fff; padding: 1.5rem; border-radius: 12px; max-width: 420px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); display: grid; gap: 0.75rem;">
+        <h3 style="margin: 0;">Transferir unidades</h3>
+        <p style="margin: 0; color: #4b4b4b;">Elige destino y cantidad para la transferencia.</p>
+        <form method="post" id="transfer-form" style="display: grid; gap: 0.35rem;">
+            <input type="hidden" name="accion" value="transferir">
+            <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+            <input type="hidden" name="codigo" id="transfer-codigo">
+            <label for="transfer-destino" style="font-weight: 600;">Sucursal destino</label>
+            <select name="destino" id="transfer-destino">
+                {% for destino in sucursales %}
+                    <option value="{{ destino }}" {% if destino == sucursal %}disabled{% endif %}>{{ destino }}</option>
+                {% endfor %}
+            </select>
+            <label for="transfer-cantidad" style="font-weight: 600;">Cantidad</label>
+            <input type="number" name="cantidad" id="transfer-cantidad" min="1" value="1">
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
+                <button type="button" class="button-link" id="cancelar-transfer" style="background: #dcdde1; color: #2f3640;">Cancelar</button>
+                <button type="submit">Confirmar</button>
             </div>
         </form>
     </div>
@@ -208,11 +217,10 @@
     const motivoPersonalizado = document.getElementById('motivo_personalizado');
 
     motivoButtons.forEach(btn => {
-        btn.addEventListener('click', (event) => {
-            const cantidadInput = event.target.parentElement.querySelector('[data-cantidad]');
+        btn.addEventListener('click', () => {
             motivoCodigo.value = btn.dataset.codigo;
-            motivoCantidad.value = cantidadInput ? cantidadInput.value : 1;
-            motivoCantidad.max = cantidadInput ? cantidadInput.max : '';
+            motivoCantidad.value = 1;
+            motivoCantidad.max = btn.dataset.max || '';
             motivoValor.value = '';
             motivoPersonalizado.value = '';
             motivoModal.style.display = 'flex';
@@ -234,6 +242,41 @@
 
     cancelarMotivo.addEventListener('click', () => {
         motivoModal.style.display = 'none';
+    });
+
+    const transferModal = document.getElementById('transfer-modal');
+    const transferButtons = document.querySelectorAll('[data-transferir]');
+    const transferForm = document.getElementById('transfer-form');
+    const transferCodigo = document.getElementById('transfer-codigo');
+    const transferCantidad = document.getElementById('transfer-cantidad');
+    const cancelarTransfer = document.getElementById('cancelar-transfer');
+
+    transferButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            transferCodigo.value = btn.dataset.codigo;
+            transferCantidad.value = 1;
+            transferCantidad.max = btn.dataset.max || '';
+            transferModal.style.display = 'flex';
+        });
+    });
+
+    cancelarTransfer.addEventListener('click', () => {
+        transferModal.style.display = 'none';
+    });
+
+    const anadirButtons = document.querySelectorAll('[data-anadir]');
+
+    anadirButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const cantidad = prompt('¿Cuántas unidades deseas añadir?');
+            const cantidadNumero = parseInt(cantidad, 10);
+
+            if (!isNaN(cantidadNumero) && cantidadNumero > 0) {
+                const form = btn.closest('form');
+                form.querySelector('input[name="cantidad"]').value = cantidadNumero;
+                form.submit();
+            }
+        });
     });
 
     const detalleModal = document.getElementById('detalle-modal');
