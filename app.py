@@ -1096,6 +1096,88 @@ def exportar_gavetas():
     return send_file(output, mimetype="text/csv", as_attachment=True, download_name=filename)
 
 
+@app.route("/crear-gavetas/<path:nombre>/exportar-csv")
+def exportar_gaveta_csv(nombre: str):
+    ubicacion = next(
+        (
+            ubicacion
+            for ubicacion in storage_locations
+            if ubicacion["nombre"].lower() == nombre.lower()
+        ),
+        None,
+    )
+    if not ubicacion:
+        flash("No se encontró la gaveta solicitada.", "error")
+        return redirect(url_for("crear_gavetas"))
+
+    recuento_productos = {}
+
+    for articulo in inventory_items:
+        if articulo["ubicacion"].lower() != ubicacion["nombre"].lower():
+            continue
+
+        producto = recuento_productos.setdefault(
+            articulo["codigo"],
+            {
+                "codigo": articulo["codigo"],
+                "descripcion": articulo.get("nombre", ""),
+                "inventario": 0,
+                "asignadas": 0,
+            },
+        )
+        producto["inventario"] += articulo.get("cantidad", 0)
+        if not producto["descripcion"]:
+            producto["descripcion"] = articulo.get("nombre", "")
+
+    for asignacion in gaveta_asignaciones.values():
+        if asignacion["gaveta"]["nombre"].lower() != ubicacion["nombre"].lower():
+            continue
+
+        producto = recuento_productos.setdefault(
+            asignacion["codigo"],
+            {
+                "codigo": asignacion["codigo"],
+                "descripcion": asignacion.get("descripcion", ""),
+                "inventario": 0,
+                "asignadas": 0,
+            },
+        )
+        producto["asignadas"] += asignacion.get("unidades", 0)
+        if not producto["descripcion"]:
+            producto["descripcion"] = asignacion.get("descripcion", "")
+
+    csv_buffer = io.StringIO()
+    writer = csv.writer(csv_buffer)
+    writer.writerow(
+        [
+            "Código",
+            "Descripción",
+            "Unidades en inventario",
+            "Unidades asignadas",
+            "Total en gaveta",
+        ]
+    )
+
+    for producto in sorted(recuento_productos.values(), key=lambda item: item["codigo"].lower()):
+        total = producto["inventario"] + producto["asignadas"]
+        writer.writerow(
+            [
+                producto["codigo"],
+                producto["descripcion"],
+                producto["inventario"],
+                producto["asignadas"],
+                total,
+            ]
+        )
+
+    output = io.BytesIO()
+    output.write(csv_buffer.getvalue().encode("utf-8"))
+    output.seek(0)
+    filename = f"gaveta_{ubicacion['nombre'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+    return send_file(output, mimetype="text/csv", as_attachment=True, download_name=filename)
+
+
 @app.route("/crear-gavetas/<path:nombre>/renombrar", methods=["POST"])
 def renombrar_gaveta(nombre: str):
     global storage_locations, inventory_items, gaveta_asignaciones
