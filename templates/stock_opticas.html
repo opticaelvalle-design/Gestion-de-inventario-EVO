@@ -332,6 +332,8 @@
             codigoInput.value = '';
             reenfocarCodigo();
         }, 10);
+        codigoInput.value = '';
+        setTimeout(reenfocarCodigo, 10);
     });
 
     window.addEventListener('DOMContentLoaded', reenfocarCodigo);
