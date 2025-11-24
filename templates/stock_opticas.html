@@ -177,28 +177,52 @@
             </div>
             <button type="button" class="button-link" id="cerrar-detalle" style="background: #dcdde1; color: #2f3640;">Cerrar</button>
         </div>
-        <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
-            <div style="background: #f5f6fa; padding: 0.75rem; border-radius: 8px;">
-                <strong>Código</strong>
-                <p id="detalle-codigo" style="margin: 0.25rem 0 0;"></p>
+        <form id="detalle-form" method="post" style="margin-top: 1rem; display: grid; gap: 0.75rem;">
+            <input type="hidden" name="accion" value="actualizar_producto">
+            <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+            <input type="hidden" name="codigo_original" id="detalle-codigo-original">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                <div style="display: grid; gap: 0.35rem;">
+                    <label for="detalle-codigo" style="font-weight: 600;">Código</label>
+                    <input type="text" id="detalle-codigo" name="codigo" required>
+                </div>
+                <div style="display: grid; gap: 0.35rem;">
+                    <label for="detalle-tipo" style="font-weight: 600;">Tipo</label>
+                    <input type="text" id="detalle-tipo" name="tipo">
+                </div>
+                <div style="display: grid; gap: 0.35rem;">
+                    <label for="detalle-mayor" style="font-weight: 600;">Precio mayorista (€)</label>
+                    <input type="number" step="0.01" id="detalle-mayor" name="precio_mayor" min="0" value="0">
+                </div>
+                <div style="display: grid; gap: 0.35rem;">
+                    <label for="detalle-pvp" style="font-weight: 600;">Precio PVP (€)</label>
+                    <input type="number" step="0.01" id="detalle-pvp" name="precio_pvp" min="0" value="0">
+                </div>
             </div>
-            <div style="background: #f5f6fa; padding: 0.75rem; border-radius: 8px;">
-                <strong>Tipo</strong>
-                <p id="detalle-tipo" style="margin: 0.25rem 0 0;"></p>
+            <div style="display: grid; gap: 0.35rem;">
+                <label for="detalle-nombre" style="font-weight: 600;">Nombre</label>
+                <input type="text" id="detalle-nombre" name="nombre" required>
             </div>
-            <div style="background: #f5f6fa; padding: 0.75rem; border-radius: 8px;">
-                <strong>Precio mayorista</strong>
-                <p id="detalle-mayor" style="margin: 0.25rem 0 0;"></p>
+            <div style="display: grid; gap: 0.35rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end;">
+                <div style="display: grid; gap: 0.35rem;">
+                    <label for="detalle-cantidad" style="font-weight: 600;">Cantidad</label>
+                    <input type="number" id="detalle-cantidad" name="cantidad" min="0" value="0">
+                </div>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
+                    <button type="button" class="button-link" id="eliminar-producto" style="background: #ffe0e0; color: #c23616;">Eliminar producto</button>
+                    <button type="submit">Guardar cambios</button>
+                </div>
             </div>
-            <div style="background: #f5f6fa; padding: 0.75rem; border-radius: 8px;">
-                <strong>Precio PVP</strong>
-                <p id="detalle-pvp" style="margin: 0.25rem 0 0;"></p>
-            </div>
-        </div>
+        </form>
         <div style="margin-top: 1rem;">
             <strong>Historial de movimientos</strong>
             <ul id="detalle-historial" style="padding-left: 1.25rem; margin-top: 0.5rem;"></ul>
         </div>
+        <form id="eliminar-form" method="post" style="display: none;">
+            <input type="hidden" name="accion" value="eliminar_producto">
+            <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+            <input type="hidden" name="codigo" id="eliminar-codigo">
+        </form>
     </div>
 </div>
 {% endblock %}
@@ -279,21 +303,31 @@
     const detalleTitulo = document.getElementById('detalle-titulo');
     const detalleSubtitulo = document.getElementById('detalle-subtitulo');
     const detalleCodigo = document.getElementById('detalle-codigo');
+    const detalleCodigoOriginal = document.getElementById('detalle-codigo-original');
     const detalleTipo = document.getElementById('detalle-tipo');
     const detalleMayor = document.getElementById('detalle-mayor');
     const detallePvp = document.getElementById('detalle-pvp');
+    const detalleNombre = document.getElementById('detalle-nombre');
+    const detalleCantidad = document.getElementById('detalle-cantidad');
     const detalleHistorial = document.getElementById('detalle-historial');
     const cerrarDetalle = document.getElementById('cerrar-detalle');
+    const eliminarProducto = document.getElementById('eliminar-producto');
+    const eliminarCodigo = document.getElementById('eliminar-codigo');
+    const eliminarForm = document.getElementById('eliminar-form');
 
     detalleBotones.forEach(btn => {
         btn.addEventListener('click', () => {
             const data = JSON.parse(btn.dataset.producto);
             detalleTitulo.textContent = data.nombre;
             detalleSubtitulo.textContent = `Sucursal: ${btn.dataset.sucursal}`;
-            detalleCodigo.textContent = data.codigo;
-            detalleTipo.textContent = data.tipo || 'N/D';
-            detalleMayor.textContent = `${(data.precio_mayor || 0).toFixed(2)} €`;
-            detallePvp.textContent = `${(data.precio_pvp || 0).toFixed(2)} €`;
+            detalleCodigo.value = data.codigo;
+            detalleCodigoOriginal.value = data.codigo;
+            detalleTipo.value = data.tipo || '';
+            detalleMayor.value = (data.precio_mayor || 0).toFixed(2);
+            detallePvp.value = (data.precio_pvp || 0).toFixed(2);
+            detalleNombre.value = data.nombre;
+            detalleCantidad.value = data.cantidad || 0;
+            eliminarCodigo.value = data.codigo;
             detalleHistorial.innerHTML = '';
             (data.movimientos || []).forEach(entry => {
                 const li = document.createElement('li');
@@ -311,6 +345,12 @@
 
     cerrarDetalle.addEventListener('click', () => {
         detalleModal.style.display = 'none';
+    });
+
+    eliminarProducto.addEventListener('click', () => {
+        if (confirm('¿Seguro que deseas eliminar este producto de la sucursal?')) {
+            eliminarForm.submit();
+        }
     });
 
     window.addEventListener('DOMContentLoaded', () => {
