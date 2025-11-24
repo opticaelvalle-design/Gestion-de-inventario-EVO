@@ -28,7 +28,7 @@
                 <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
                 <label for="codigo_barras" style="font-weight: 600;">Entrada rápida por código de barras</label>
                 <div style="display: flex; gap: 0.5rem;">
-                    <input type="text" name="codigo_barras" id="codigo_barras" placeholder="Escanea o escribe el código" required>
+                    <input type="text" name="codigo_barras" id="codigo_barras" placeholder="Escanea o escribe el código" required autofocus>
                     <button type="submit">Registrar</button>
                 </div>
                 <small style="color: #718093;">Tras pulsar Enter el campo se limpia para la siguiente lectura.</small>
@@ -275,9 +275,19 @@
         detalleModal.style.display = 'none';
     });
 
+    window.addEventListener('DOMContentLoaded', () => {
+        const input = document.getElementById('codigo_barras');
+        if (input) {
+            input.focus();
+        }
+    });
+
     document.getElementById('lectura-form').addEventListener('submit', () => {
         const input = document.getElementById('codigo_barras');
-        setTimeout(() => input.value = '', 50);
+        setTimeout(() => {
+            input.value = '';
+            input.focus();
+        }, 50);
     });
 </script>
 {% endblock %}
