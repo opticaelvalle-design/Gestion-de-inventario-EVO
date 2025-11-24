@@ -28,7 +28,7 @@
                 <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
                 <label for="codigo_barras" style="font-weight: 600;">Entrada rápida por código de barras</label>
                 <div style="display: flex; gap: 0.5rem;">
-                    <input type="text" name="codigo_barras" id="codigo_barras" placeholder="Escanea o escribe el código" required>
+                    <input type="text" name="codigo_barras" id="codigo_barras" placeholder="Escanea o escribe el código" autocomplete="off" required>
                     <button type="submit">Registrar</button>
                 </div>
                 <small style="color: #718093;">Tras pulsar Enter el campo se limpia para la siguiente lectura.</small>
@@ -318,9 +318,23 @@
         detalleModal.style.display = 'none';
     });
 
-    document.getElementById('lectura-form').addEventListener('submit', () => {
-        const input = document.getElementById('codigo_barras');
-        setTimeout(() => input.value = '', 50);
+    const lecturaForm = document.getElementById('lectura-form');
+    const codigoInput = document.getElementById('codigo_barras');
+
+    const reenfocarCodigo = () => {
+        codigoInput.focus();
+        codigoInput.select();
+    };
+
+    lecturaForm.addEventListener('submit', () => {
+        // Esperamos al ciclo siguiente para no borrar el valor antes de enviarlo
+        setTimeout(() => {
+            codigoInput.value = '';
+            reenfocarCodigo();
+        }, 10);
     });
+
+    window.addEventListener('DOMContentLoaded', reenfocarCodigo);
+    window.addEventListener('pageshow', reenfocarCodigo);
 </script>
 {% endblock %}
