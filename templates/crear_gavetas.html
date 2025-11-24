@@ -42,9 +42,10 @@
                     <td>{{ ubicacion.tipo }}</td>
                     <td>{{ ubicacion.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
                     <td>
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <a class="button-link" href="{{ url_for('gaveta_detalle', nombre=ubicacion.nombre) }}">Ver contenido</a>
-                            <form method="post" action="{{ url_for('eliminar_gaveta', nombre=ubicacion.nombre) }}" onsubmit="return confirm('¿Seguro que quieres eliminar esta gaveta?');">
+                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                            <a class="button-link" href="{{ url_for('gaveta_detalle', nombre=ubicacion.nombre) }}" style="display: inline-flex; align-items: center;">Ver contenido</a>
+                            <a class="button-link" href="{{ url_for('exportar_gaveta_csv', nombre=ubicacion.nombre) }}" style="display: inline-flex; align-items: center;">Exportar CSV</a>
+                            <form method="post" action="{{ url_for('eliminar_gaveta', nombre=ubicacion.nombre) }}" onsubmit="return confirm('¿Seguro que quieres eliminar esta gaveta?');" style="display: inline-flex; align-items: center;">
                                 <button type="submit" class="button-link" style="background-color: #b3261e; color: white; border: none; padding: 0.4rem 0.65rem; border-radius: 6px; cursor: pointer;">Eliminar</button>
                             </form>
                         </div>
