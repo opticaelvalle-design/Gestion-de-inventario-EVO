@@ -41,18 +41,27 @@ INITIAL_INVENTORY = [
     {
         "codigo": "ABC123",
         "nombre": "Tornillo M4",
+        "tipo": "Fijación",
+        "precio_pvo": 0.08,
+        "precio_pvp": 0.24,
         "cantidad": 150,
         "ubicacion": "Gaveta A1",
     },
     {
         "codigo": "XYZ789",
         "nombre": "Arandela 12mm",
+        "tipo": "Fijación",
+        "precio_pvo": 0.04,
+        "precio_pvp": 0.15,
         "cantidad": 60,
         "ubicacion": "Baldas Zona B",
     },
     {
         "codigo": "LMN456",
         "nombre": "Destornillador plano",
+        "tipo": "Herramienta",
+        "precio_pvo": 0.0,
+        "precio_pvp": 0.0,
         "cantidad": 15,
         "ubicacion": "Gaveta A1",
     },
@@ -420,6 +429,9 @@ def _init_db_schema():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 codigo TEXT NOT NULL,
                 nombre TEXT NOT NULL,
+                tipo TEXT DEFAULT '',
+                precio_pvo REAL DEFAULT 0,
+                precio_pvp REAL DEFAULT 0,
                 cantidad INTEGER NOT NULL,
                 ubicacion TEXT NOT NULL,
                 UNIQUE(codigo, ubicacion)
@@ -499,15 +511,27 @@ def _migrate_inventory_schema():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 codigo TEXT NOT NULL,
                 nombre TEXT NOT NULL,
+                tipo TEXT DEFAULT '',
+                precio_pvo REAL DEFAULT 0,
+                precio_pvp REAL DEFAULT 0,
                 cantidad INTEGER NOT NULL,
                 ubicacion TEXT NOT NULL,
                 UNIQUE(codigo, ubicacion)
             );
-            INSERT INTO inventory_items (codigo, nombre, cantidad, ubicacion)
-            SELECT codigo, nombre, cantidad, ubicacion FROM inventory_items_old;
+            INSERT INTO inventory_items (codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad, ubicacion)
+            SELECT codigo, nombre, '' AS tipo, 0 AS precio_pvo, 0 AS precio_pvp, cantidad, ubicacion FROM inventory_items_old;
             DROP TABLE inventory_items_old;
             """
         )
+
+        existing_columns = {row[1] for row in conn.execute("PRAGMA table_info('inventory_items')")}
+        for column, ddl in (
+            ("tipo", "ALTER TABLE inventory_items ADD COLUMN tipo TEXT DEFAULT ''"),
+            ("precio_pvo", "ALTER TABLE inventory_items ADD COLUMN precio_pvo REAL DEFAULT 0"),
+            ("precio_pvp", "ALTER TABLE inventory_items ADD COLUMN precio_pvp REAL DEFAULT 0"),
+        ):
+            if column not in existing_columns:
+                conn.execute(ddl)
 
 
 def _seed_if_empty():
@@ -525,11 +549,17 @@ def _seed_if_empty():
         cursor = conn.execute("SELECT COUNT(*) FROM inventory_items")
         if cursor.fetchone()[0] == 0:
             conn.executemany(
-                "INSERT INTO inventory_items (codigo, nombre, cantidad, ubicacion) VALUES (?, ?, ?, ?)",
+                """
+                INSERT INTO inventory_items (codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad, ubicacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
                 [
                     (
                         item["codigo"],
                         item["nombre"],
+                        item.get("tipo", ""),
+                        float(item.get("precio_pvo", 0)),
+                        float(item.get("precio_pvp", 0)),
                         item["cantidad"],
                         item["ubicacion"],
                     )
@@ -626,11 +656,17 @@ def _load_data():
                 "id": row["id"],
                 "codigo": row["codigo"],
                 "nombre": row["nombre"],
+                "tipo": row["tipo"] or "",
+                "precio_pvo": row["precio_pvo"] if row["precio_pvo"] is not None else 0.0,
+                "precio_pvp": row["precio_pvp"] if row["precio_pvp"] is not None else 0.0,
                 "cantidad": row["cantidad"],
                 "ubicacion": row["ubicacion"],
             }
             for row in conn.execute(
-                "SELECT id, codigo, nombre, cantidad, ubicacion FROM inventory_items ORDER BY codigo"
+                """
+                SELECT id, codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad, ubicacion
+                FROM inventory_items ORDER BY codigo
+                """
             )
         ]
 
@@ -1233,6 +1269,9 @@ def _ajustar_stock_gaveta(asignacion: dict, delta: int):
         (item for item in inventory_items if item["codigo"].lower() == codigo.lower()), None
     )
     nombre_articulo = articulo_referencia["nombre"] if articulo_referencia else descripcion
+    tipo_articulo = articulo_referencia.get("tipo", "") if articulo_referencia else ""
+    precio_pvo = float(articulo_referencia.get("precio_pvo", 0)) if articulo_referencia else 0.0
+    precio_pvp = float(articulo_referencia.get("precio_pvp", 0)) if articulo_referencia else 0.0
 
     existente = next(
         (
@@ -1256,14 +1295,20 @@ def _ajustar_stock_gaveta(asignacion: dict, delta: int):
     if delta > 0:
         with get_connection() as conn:
             cursor = conn.execute(
-                "INSERT INTO inventory_items (codigo, nombre, cantidad, ubicacion) VALUES (?, ?, ?, ?)",
-                (codigo, nombre_articulo, delta, ubicacion),
+                """
+                INSERT INTO inventory_items (codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad, ubicacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (codigo, nombre_articulo, tipo_articulo, precio_pvo, precio_pvp, delta, ubicacion),
             )
             nuevo_id = cursor.lastrowid
         nuevo_articulo = {
             "id": nuevo_id,
             "codigo": codigo,
             "nombre": nombre_articulo,
+            "tipo": tipo_articulo,
+            "precio_pvo": precio_pvo,
+            "precio_pvp": precio_pvp,
             "cantidad": delta,
             "ubicacion": ubicacion,
         }
@@ -1713,7 +1758,14 @@ def inventario_detalle(codigo: str):
 
     total_unidades = sum(item["cantidad"] for item in articulos)
     ubicaciones = sorted(articulos, key=lambda item: item["ubicacion"].lower())
-    articulo = {"codigo": articulos[0]["codigo"], "nombre": articulos[0]["nombre"]}
+    articulo_base = articulos[0]
+    articulo = {
+        "codigo": articulo_base["codigo"],
+        "nombre": articulo_base["nombre"],
+        "tipo": articulo_base.get("tipo", ""),
+        "precio_pvo": float(articulo_base.get("precio_pvo", 0)),
+        "precio_pvp": float(articulo_base.get("precio_pvp", 0)),
+    }
 
     return render_template(
         "inventario_detalle.html",
@@ -1732,9 +1784,24 @@ def actualizar_articulo(codigo: str):
 
     nuevo_codigo = request.form.get("codigo", "").strip()
     nuevo_nombre = request.form.get("nombre", "").strip()
+    nuevo_tipo = request.form.get("tipo", "").strip()
+    nuevo_precio_pvo = request.form.get("precio_pvo", type=float)
+    nuevo_precio_pvp = request.form.get("precio_pvp", type=float)
+    nueva_cantidad_total = request.form.get("cantidad", type=int)
 
-    if not nuevo_codigo or not nuevo_nombre:
-        flash("Indica código y nombre para actualizar el artículo.", "error")
+    if (
+        not nuevo_codigo
+        or not nuevo_nombre
+        or nuevo_precio_pvo is None
+        or nuevo_precio_pvp is None
+        or nueva_cantidad_total is None
+        or nueva_cantidad_total < 0
+    ):
+        flash("Indica código, nombre, precios y una cantidad total válida.", "error")
+        return redirect(url_for("inventario_detalle", codigo=codigo))
+
+    if nuevo_precio_pvo < 0 or nuevo_precio_pvp < 0:
+        flash("Los precios no pueden ser negativos.", "error")
         return redirect(url_for("inventario_detalle", codigo=codigo))
 
     ubicaciones_actuales = {item["ubicacion"].lower() for item in articulos}
@@ -1755,14 +1822,37 @@ def actualizar_articulo(codigo: str):
         )
         return redirect(url_for("inventario_detalle", codigo=codigo))
 
+    total_actual = sum(item["cantidad"] for item in articulos)
+    diferencia_total = nueva_cantidad_total - total_actual
+    primera_ubicacion = articulos[0]
+    nueva_cantidad_principal = primera_ubicacion["cantidad"] + diferencia_total
+    if nueva_cantidad_principal < 0:
+        flash(
+            "No puedes fijar la cantidad total por debajo de las unidades almacenadas en otras ubicaciones.",
+            "error",
+        )
+        return redirect(url_for("inventario_detalle", codigo=codigo))
+    primera_ubicacion["cantidad"] = nueva_cantidad_principal
+
     for item in articulos:
         item["codigo"] = nuevo_codigo
         item["nombre"] = nuevo_nombre
+        item["tipo"] = nuevo_tipo
+        item["precio_pvo"] = nuevo_precio_pvo
+        item["precio_pvp"] = nuevo_precio_pvp
 
     with get_connection() as conn:
         conn.execute(
-            "UPDATE inventory_items SET codigo = ?, nombre = ? WHERE lower(codigo) = ?",
-            (nuevo_codigo, nuevo_nombre, codigo.lower()),
+            """
+            UPDATE inventory_items
+            SET codigo = ?, nombre = ?, tipo = ?, precio_pvo = ?, precio_pvp = ?
+            WHERE lower(codigo) = ?
+            """,
+            (nuevo_codigo, nuevo_nombre, nuevo_tipo, nuevo_precio_pvo, nuevo_precio_pvp, codigo.lower()),
+        )
+        conn.execute(
+            "UPDATE inventory_items SET cantidad = ? WHERE id = ?",
+            (nueva_cantidad_principal, primera_ubicacion["id"]),
         )
 
     flash("Datos del artículo actualizados correctamente.", "success")
@@ -1846,8 +1936,19 @@ def agregar_existencia(codigo: str):
     articulo_base = articulos[0]
     with get_connection() as conn:
         cursor = conn.execute(
-            "INSERT INTO inventory_items (codigo, nombre, cantidad, ubicacion) VALUES (?, ?, ?, ?)",
-            (articulo_base["codigo"], articulo_base["nombre"], cantidad, ubicacion),
+            """
+            INSERT INTO inventory_items (codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad, ubicacion)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                articulo_base["codigo"],
+                articulo_base["nombre"],
+                articulo_base.get("tipo", ""),
+                float(articulo_base.get("precio_pvo", 0)),
+                float(articulo_base.get("precio_pvp", 0)),
+                cantidad,
+                ubicacion,
+            ),
         )
         nuevo_id = cursor.lastrowid
 
@@ -1856,6 +1957,9 @@ def agregar_existencia(codigo: str):
             "id": nuevo_id,
             "codigo": articulo_base["codigo"],
             "nombre": articulo_base["nombre"],
+            "tipo": articulo_base.get("tipo", ""),
+            "precio_pvo": float(articulo_base.get("precio_pvo", 0)),
+            "precio_pvp": float(articulo_base.get("precio_pvp", 0)),
             "cantidad": cantidad,
             "ubicacion": ubicacion,
         }
@@ -1863,6 +1967,34 @@ def agregar_existencia(codigo: str):
 
     flash("Ubicación añadida al artículo.", "success")
     return redirect(url_for("inventario_detalle", codigo=codigo))
+
+
+@app.route("/inventario/<codigo>/eliminar", methods=["POST"])
+def eliminar_articulo(codigo: str):
+    articulos = _articulos_por_codigo(codigo)
+    if not articulos:
+        flash("No se encontró el artículo solicitado.", "error")
+        return redirect(url_for("mostrar_stock"))
+
+    inventario_filtrado = [
+        item for item in inventory_items if item["codigo"].lower() != codigo.lower()
+    ]
+    inventory_items[:] = inventario_filtrado
+
+    claves_asignaciones = [
+        clave
+        for clave, asignacion in gaveta_asignaciones.items()
+        if asignacion["codigo"].lower() == codigo.lower()
+    ]
+    for clave in claves_asignaciones:
+        del gaveta_asignaciones[clave]
+
+    with get_connection() as conn:
+        conn.execute("DELETE FROM inventory_items WHERE lower(codigo) = ?", (codigo.lower(),))
+        conn.execute("DELETE FROM gaveta_asignaciones WHERE lower(codigo) = ?", (codigo.lower(),))
+
+    flash("Artículo eliminado junto con sus ubicaciones.", "success")
+    return redirect(url_for("mostrar_stock"))
 
 
 @app.route("/panel-control")

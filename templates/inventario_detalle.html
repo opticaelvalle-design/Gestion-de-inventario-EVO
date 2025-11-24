@@ -14,7 +14,22 @@
         <label>Nombre
             <input type="text" name="nombre" value="{{ articulo.nombre }}" required />
         </label>
+        <label>Tipo
+            <input type="text" name="tipo" value="{{ articulo.tipo }}" placeholder="Tipo" />
+        </label>
+        <label>PVO
+            <input type="number" name="precio_pvo" value="{{ '%.2f'|format(articulo.precio_pvo) }}" min="0" step="0.01" required />
+        </label>
+        <label>PVP
+            <input type="number" name="precio_pvp" value="{{ '%.2f'|format(articulo.precio_pvp) }}" min="0" step="0.01" required />
+        </label>
+        <label>Cantidad total
+            <input type="number" name="cantidad" value="{{ total_unidades }}" min="0" required />
+        </label>
         <button type="submit">Guardar cambios</button>
+    </form>
+    <form method="post" action="{{ url_for('eliminar_articulo', codigo=articulo.codigo) }}" class="inline-form" onsubmit="return confirm('¿Eliminar este artículo y todas sus ubicaciones?');">
+        <button type="submit" class="danger">Eliminar producto</button>
     </form>
 </div>
 
