@@ -908,6 +908,80 @@ def stock_opticas():
                 flash("Transferencia completada.", "success")
             return redirect(url_for("stock_opticas", sucursal=sucursal))
 
+        if accion == "actualizar_producto":
+            codigo_original = request.form.get("codigo_original", "").strip()
+            producto = _buscar_producto_optica(sucursal, codigo_original)
+            if not producto:
+                flash("No se encontró el producto seleccionado.", "error")
+                return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+            codigo = request.form.get("codigo", "").strip()
+            nombre = request.form.get("nombre", "").strip()
+            tipo = request.form.get("tipo", "").strip()
+            precio_mayor = request.form.get("precio_mayor", type=float, default=0.0)
+            precio_pvp = request.form.get("precio_pvp", type=float, default=0.0)
+            cantidad = request.form.get("cantidad", type=int, default=producto["cantidad"])
+
+            if not codigo or not nombre or cantidad < 0:
+                flash("Introduce código, nombre y una cantidad válida.", "error")
+                return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+            existente = _buscar_producto_optica(sucursal, codigo)
+            if existente and existente is not producto:
+                flash("Ya existe otro producto con ese código en la sucursal.", "warning")
+                return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+            cambios = []
+            if producto["codigo"] != codigo:
+                cambios.append(f"Código: {producto['codigo']} → {codigo}")
+            if producto["nombre"] != nombre:
+                cambios.append(f"Nombre: {producto['nombre']} → {nombre}")
+            if producto.get("tipo", "") != tipo:
+                cambios.append(f"Tipo: {producto.get('tipo', '')} → {tipo}")
+            if float(producto.get("precio_mayor", 0)) != float(precio_mayor):
+                cambios.append(
+                    f"Precio mayorista: {producto.get('precio_mayor', 0)} → {precio_mayor}"
+                )
+            if float(producto.get("precio_pvp", 0)) != float(precio_pvp):
+                cambios.append(
+                    f"Precio PVP: {producto.get('precio_pvp', 0)} → {precio_pvp}"
+                )
+            if int(producto.get("cantidad", 0)) != int(cantidad):
+                cambios.append(
+                    f"Cantidad: {producto.get('cantidad', 0)} → {cantidad}"
+                )
+
+            producto.update(
+                {
+                    "codigo": codigo,
+                    "nombre": nombre,
+                    "tipo": tipo,
+                    "precio_mayor": precio_mayor,
+                    "precio_pvp": precio_pvp,
+                    "cantidad": cantidad,
+                }
+            )
+
+            descripcion_cambios = ", ".join(cambios) if cambios else "Sin cambios"
+            _registrar_movimiento_optica(
+                producto,
+                sucursal,
+                f"Actualización de detalle: {descripcion_cambios}",
+            )
+            flash("Producto actualizado correctamente.", "success")
+            return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+        if accion == "eliminar_producto":
+            codigo = request.form.get("codigo", "").strip()
+            producto = _buscar_producto_optica(sucursal, codigo)
+            if not producto:
+                flash("No se encontró el producto a eliminar.", "error")
+            else:
+                inventario = _asegurar_sucursal_optica(sucursal)
+                inventario.remove(producto)
+                flash(f"Producto {codigo} eliminado de {sucursal}.", "success")
+            return redirect(url_for("stock_opticas", sucursal=sucursal))
+
         if accion == "lectura_codigo":
             codigo = request.form.get("codigo_barras", "").strip()
             if not codigo:
