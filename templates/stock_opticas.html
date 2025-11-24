@@ -91,34 +91,42 @@
                         <td>{{ producto.nombre }}</td>
                         <td>{{ producto.tipo or 'N/D' }}</td>
                         <td><strong>{{ producto.cantidad }}</strong></td>
-                        <td style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.35rem;">
-                            <form method="post" class="inline-form">
-                                <input type="hidden" name="accion" value="ajustar">
-                                <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-                                <input type="hidden" name="codigo" value="{{ producto.codigo }}">
-                                <label style="font-weight: 600;">Añadir</label>
-                                <input type="number" name="cantidad" min="1" value="1">
-                                <button type="submit">Añadir</button>
-                            </form>
-                            <div class="inline-form">
-                                <label style="font-weight: 600;">Retirar</label>
-                                <input type="number" name="cantidad" min="1" value="1" data-cantidad max="{{ producto.cantidad }}">
-                                <button type="button" class="button-link" data-retirar data-codigo="{{ producto.codigo }}" data-nombre="{{ producto.nombre }}">Retirar</button>
+                        <td>
+                            <div data-actions style="display: grid; gap: 0.5rem;">
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+                                    <button type="button" class="button-link" data-toggle-form="add" aria-label="Añadir unidades">Añadir</button>
+                                    <button type="button" class="button-link" data-retirar data-codigo="{{ producto.codigo }}" data-nombre="{{ producto.nombre }}" data-max="{{ producto.cantidad }}">Retirar</button>
+                                    <button type="button" class="button-link" data-toggle-form="transfer" aria-label="Transferir unidades">Transferir</button>
+                                    <button type="button" class="button-link" data-detalle data-producto='{{ producto | tojson }}' data-sucursal="{{ sucursal }}">Ver detalle</button>
+                                </div>
+                                <form method="post" class="inline-form action-form" data-form="add" style="display: none; align-items: end; gap: 0.35rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+                                    <input type="hidden" name="accion" value="ajustar">
+                                    <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                                    <input type="hidden" name="codigo" value="{{ producto.codigo }}">
+                                    <label style="font-weight: 600;">Unidades a añadir</label>
+                                    <input type="number" name="cantidad" min="1" value="1">
+                                    <div style="display: flex; gap: 0.35rem;">
+                                        <button type="submit">Confirmar</button>
+                                        <button type="button" class="button-link" data-cancel-form="add">Cancelar</button>
+                                    </div>
+                                </form>
+                                <form method="post" class="inline-form action-form" data-form="transfer" style="display: none; align-items: end; gap: 0.35rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+                                    <input type="hidden" name="accion" value="transferir">
+                                    <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                                    <input type="hidden" name="codigo" value="{{ producto.codigo }}">
+                                    <label style="font-weight: 600;">Destino y unidades</label>
+                                    <select name="destino">
+                                        {% for destino in sucursales %}
+                                            <option value="{{ destino }}" {% if destino == sucursal %}disabled{% endif %}>{{ destino }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <input type="number" name="cantidad" min="1" value="1">
+                                    <div style="display: flex; gap: 0.35rem;">
+                                        <button type="submit">Confirmar</button>
+                                        <button type="button" class="button-link" data-cancel-form="transfer">Cancelar</button>
+                                    </div>
+                                </form>
                             </div>
-                            <form method="post" class="inline-form">
-                                <input type="hidden" name="accion" value="transferir">
-                                <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-                                <input type="hidden" name="codigo" value="{{ producto.codigo }}">
-                                <label style="font-weight: 600;">Transferir</label>
-                                <select name="destino">
-                                    {% for destino in sucursales %}
-                                        <option value="{{ destino }}" {% if destino == sucursal %}disabled{% endif %}>{{ destino }}</option>
-                                    {% endfor %}
-                                </select>
-                                <input type="number" name="cantidad" min="1" value="1">
-                                <button type="submit">Transferir</button>
-                            </form>
-                            <button type="button" class="button-link" data-detalle data-producto='{{ producto | tojson }}' data-sucursal="{{ sucursal }}">Ver detalle</button>
                         </td>
                     </tr>
                 {% endfor %}
@@ -208,11 +216,10 @@
     const motivoPersonalizado = document.getElementById('motivo_personalizado');
 
     motivoButtons.forEach(btn => {
-        btn.addEventListener('click', (event) => {
-            const cantidadInput = event.target.parentElement.querySelector('[data-cantidad]');
+        btn.addEventListener('click', () => {
             motivoCodigo.value = btn.dataset.codigo;
-            motivoCantidad.value = cantidadInput ? cantidadInput.value : 1;
-            motivoCantidad.max = cantidadInput ? cantidadInput.max : '';
+            motivoCantidad.value = 1;
+            motivoCantidad.max = btn.dataset.max || '';
             motivoValor.value = '';
             motivoPersonalizado.value = '';
             motivoModal.style.display = 'flex';
@@ -234,6 +241,37 @@
 
     cancelarMotivo.addEventListener('click', () => {
         motivoModal.style.display = 'none';
+    });
+
+    const actionButtons = document.querySelectorAll('[data-toggle-form]');
+    const cancelButtons = document.querySelectorAll('[data-cancel-form]');
+
+    actionButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const actionsWrapper = button.closest('[data-actions]');
+            const targetForm = actionsWrapper?.querySelector(`[data-form="${button.dataset.toggleForm}"]`);
+
+            actionsWrapper?.querySelectorAll('.action-form').forEach(form => {
+                form.style.display = form === targetForm ? 'grid' : 'none';
+            });
+
+            if (targetForm) {
+                const quantityInput = targetForm.querySelector('input[type="number"]');
+                if (quantityInput) {
+                    quantityInput.focus();
+                    quantityInput.select();
+                }
+            }
+        });
+    });
+
+    cancelButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const actionsWrapper = button.closest('[data-actions]');
+            actionsWrapper?.querySelectorAll('.action-form').forEach(form => {
+                form.style.display = 'none';
+            });
+        });
     });
 
     const detalleModal = document.getElementById('detalle-modal');
