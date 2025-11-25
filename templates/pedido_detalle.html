@@ -119,7 +119,7 @@
                                 <button type="submit" class="button-link">Editar</button>
                             </form>
                             <form method="post" action="{{ url_for('eliminar_linea_pedido', pedido_id=pedido.id, codigo=linea.codigo) }}" onsubmit="return confirm('¿Seguro que quieres eliminar la línea {{ linea.codigo }}?');">
-                                <button type="submit" class="button-link" style="background-color: #b3261e; color: white;">Eliminar</button>
+                                <button type="submit" class="button-link danger">Eliminar</button>
                             </form>
                         </div>
                     </td>
