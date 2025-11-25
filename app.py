@@ -70,6 +70,7 @@ INITIAL_INVENTORY = [
 INITIAL_PURCHASE_ORDERS = [
     {
         "id": 5001,
+        "nombre": "Reposición urgente Atlas",
         "cliente": "Electrodomésticos Atlas",
         "fecha": datetime(2024, 3, 8, 9, 45),
         "estado": "Parcial",
@@ -93,6 +94,7 @@ INITIAL_PURCHASE_ORDERS = [
     },
     {
         "id": 5002,
+        "nombre": "Pedido Solaris nuevo centro",
         "cliente": "Solaris Components",
         "fecha": datetime(2024, 3, 15, 14, 10),
         "estado": "Pendiente",
@@ -116,6 +118,7 @@ INITIAL_PURCHASE_ORDERS = [
     },
     {
         "id": 5003,
+        "nombre": "Cierre proyecto Boreal",
         "cliente": "Ingeniería Boreal",
         "fecha": datetime(2024, 3, 20, 11, 5),
         "estado": "Completado",
@@ -439,6 +442,7 @@ def _init_db_schema():
 
             CREATE TABLE IF NOT EXISTS purchase_orders (
                 id INTEGER PRIMARY KEY,
+                nombre TEXT NOT NULL DEFAULT '',
                 cliente TEXT NOT NULL,
                 fecha TEXT NOT NULL,
                 estado TEXT NOT NULL,
@@ -534,6 +538,16 @@ def _migrate_inventory_schema():
                 conn.execute(ddl)
 
 
+def _migrate_purchase_orders_schema():
+    with get_connection() as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info('purchase_orders')")}
+        if not columns:
+            return
+
+        if "nombre" not in columns:
+            conn.execute("ALTER TABLE purchase_orders ADD COLUMN nombre TEXT DEFAULT ''")
+
+
 def _seed_if_empty():
     with get_connection() as conn:
         cursor = conn.execute("SELECT COUNT(*) FROM storage_locations")
@@ -571,9 +585,10 @@ def _seed_if_empty():
         if cursor.fetchone()[0] == 0:
             for pedido in INITIAL_PURCHASE_ORDERS:
                 conn.execute(
-                    "INSERT INTO purchase_orders (id, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO purchase_orders (id, nombre, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?, ?)",
                     (
                         pedido["id"],
+                        pedido["nombre"],
                         pedido["cliente"],
                         pedido["fecha"].isoformat(),
                         pedido["estado"],
@@ -672,7 +687,7 @@ def _load_data():
 
         purchase_orders = []
         pedidos_rows = conn.execute(
-            "SELECT id, cliente, fecha, estado, notas FROM purchase_orders ORDER BY fecha"
+            "SELECT id, nombre, cliente, fecha, estado, notas FROM purchase_orders ORDER BY fecha"
         ).fetchall()
         for pedido in pedidos_rows:
             lineas = [
@@ -694,6 +709,7 @@ def _load_data():
             purchase_orders.append(
                 {
                     "id": pedido["id"],
+                    "nombre": pedido["nombre"],
                     "cliente": pedido["cliente"],
                     "fecha": _as_datetime(pedido["fecha"]),
                     "estado": pedido["estado"],
@@ -763,6 +779,7 @@ def _load_data():
 def ensure_database():
     _init_db_schema()
     _migrate_inventory_schema()
+    _migrate_purchase_orders_schema()
     _seed_if_empty()
     _load_data()
 
@@ -2203,6 +2220,7 @@ def panel_control():
 @app.route("/pedidos", methods=["GET", "POST"])
 def pedidos():
     if request.method == "POST":
+        nombre_pedido = request.form.get("nombre", "").strip()
         cliente = request.form.get("cliente", "").strip()
         codigo = request.form.get("codigo", "").strip()
         descripcion = request.form.get("descripcion", "").strip()
@@ -2212,6 +2230,7 @@ def pedidos():
             flash("Completa todos los datos del pedido con cantidades válidas.", "error")
         else:
             nuevo_id = max((pedido["id"] for pedido in purchase_orders), default=5000) + 1
+            nombre_pedido = nombre_pedido or f"Pedido #{nuevo_id}"
             nueva_linea = {
                 "codigo": codigo,
                 "descripcion": descripcion,
@@ -2221,6 +2240,7 @@ def pedidos():
             }
             nuevo_pedido = {
                 "id": nuevo_id,
+                "nombre": nombre_pedido,
                 "cliente": cliente,
                 "fecha": datetime.now(),
                 "estado": "Pendiente",
@@ -2230,9 +2250,10 @@ def pedidos():
             purchase_orders.append(nuevo_pedido)
             with get_connection() as conn:
                 conn.execute(
-                    "INSERT INTO purchase_orders (id, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO purchase_orders (id, nombre, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?, ?)",
                     (
                         nuevo_pedido["id"],
+                        nuevo_pedido["nombre"],
                         nuevo_pedido["cliente"],
                         nuevo_pedido["fecha"].isoformat(),
                         nuevo_pedido["estado"],
@@ -2300,12 +2321,13 @@ def editar_pedido(pedido_id: int):
         return redirect(url_for("pedidos"))
 
     cliente = request.form.get("cliente", "").strip()
+    nombre = request.form.get("nombre", "").strip()
     estado = request.form.get("estado", "").strip()
     notas = request.form.get("notas", "").strip()
     fecha_str = request.form.get("fecha", "").strip()
 
-    if not cliente or not estado or not fecha_str:
-        flash("Completa cliente, estado y fecha para actualizar el pedido.", "error")
+    if not cliente or not nombre or not estado or not fecha_str:
+        flash("Completa nombre, cliente, estado y fecha para actualizar el pedido.", "error")
         return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
 
     try:
@@ -2314,12 +2336,20 @@ def editar_pedido(pedido_id: int):
         flash("La fecha indicada no es válida.", "error")
         return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
 
-    pedido.update({"cliente": cliente, "estado": estado, "fecha": fecha, "notas": notas})
+    pedido.update(
+        {
+            "nombre": nombre,
+            "cliente": cliente,
+            "estado": estado,
+            "fecha": fecha,
+            "notas": notas,
+        }
+    )
 
     with get_connection() as conn:
         conn.execute(
-            "UPDATE purchase_orders SET cliente = ?, fecha = ?, estado = ?, notas = ? WHERE id = ?",
-            (cliente, fecha.isoformat(), estado, notas, pedido_id),
+            "UPDATE purchase_orders SET nombre = ?, cliente = ?, fecha = ?, estado = ?, notas = ? WHERE id = ?",
+            (nombre, cliente, fecha.isoformat(), estado, notas, pedido_id),
         )
 
     flash("Pedido actualizado correctamente.", "success")
