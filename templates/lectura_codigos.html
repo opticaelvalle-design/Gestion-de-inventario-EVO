@@ -17,10 +17,7 @@
                 <small style="color: #c23616; font-weight: 600;">Selecciona o crea un albarán antes de leer.</small>
             {% endif %}
         </div>
-        <form method="post" style="gap: 0.35rem;">
-            <input type="hidden" name="accion" value="nuevo_albaran" />
-            <button type="submit">Crear albarán nuevo</button>
-        </form>
+        <button type="button" id="abrir-modal-albaran" style="height: 100%;">Crear albarán nuevo</button>
         <form method="post" style="gap: 0.35rem;">
             <label for="albaran_id">Elegir albarán existente</label>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
@@ -159,6 +156,30 @@
         <p>Todavía no se han asignado gavetas a los pedidos.</p>
     </div>
 {% endif %}
+
+<div id="modal-crear-albaran" style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.3); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;">
+    <div style="background: #fff; border-radius: 10px; padding: 1.25rem; max-width: 480px; width: 100%; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12); display: grid; gap: 0.75rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+            <h3 style="margin: 0;">Crear albarán</h3>
+            <button type="button" id="cerrar-modal-albaran" style="background: none; color: #2d3436; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.25rem 0.5rem;">✕</button>
+        </div>
+        <form method="post" id="form-crear-albaran" style="display: grid; gap: 0.75rem;">
+            <div style="display: grid; gap: 0.35rem;">
+                <label for="numero_albaran">Nombre o número</label>
+                <input type="text" id="numero_albaran" name="numero" value="{{ numero_sugerido }}" placeholder="Ej. {{ numero_sugerido }}" />
+            </div>
+            <div style="display: grid; gap: 0.35rem;">
+                <label for="proveedor_albaran">Proveedor</label>
+                <input type="text" id="proveedor_albaran" name="proveedor" placeholder="Nombre del proveedor" />
+            </div>
+            <input type="hidden" name="accion" value="nuevo_albaran" />
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button type="button" id="cancelar-modal-albaran" style="background: #dcdde1; color: #2d3436; border-color: #dcdde1;">Cancelar</button>
+                <button type="submit">Crear albarán</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -169,6 +190,40 @@
             if (event.key === 'Enter') {
                 event.preventDefault();
                 codigoInput.form.submit();
+            }
+        });
+    }
+
+    const modal = document.getElementById('modal-crear-albaran');
+    const abrirModalBtn = document.getElementById('abrir-modal-albaran');
+    const cerrarModalBtn = document.getElementById('cerrar-modal-albaran');
+    const cancelarModalBtn = document.getElementById('cancelar-modal-albaran');
+    const numeroAlbaranInput = document.getElementById('numero_albaran');
+
+    const abrirModal = () => {
+        if (modal) {
+            modal.style.display = 'flex';
+            if (numeroAlbaranInput) {
+                numeroAlbaranInput.focus();
+                numeroAlbaranInput.select();
+            }
+        }
+    };
+
+    const cerrarModal = () => {
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    if (abrirModalBtn) abrirModalBtn.addEventListener('click', abrirModal);
+    if (cerrarModalBtn) cerrarModalBtn.addEventListener('click', cerrarModal);
+    if (cancelarModalBtn) cancelarModalBtn.addEventListener('click', cerrarModal);
+
+    if (modal) {
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                cerrarModal();
             }
         });
     }
