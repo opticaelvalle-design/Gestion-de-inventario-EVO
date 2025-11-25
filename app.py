@@ -1762,14 +1762,14 @@ def _generar_numero_albaran():
     return f"ALB-{datetime.now().year}-{secuencia:03d}"
 
 
-def _crear_albaran():
+def _crear_albaran(numero: str | None = None, proveedor: str | None = None, fabrica: str | None = None):
     nuevo_id = max((nota["id"] for nota in delivery_notes), default=7000) + 1
     nuevo_albaran = {
         "id": nuevo_id,
-        "numero": _generar_numero_albaran(),
+        "numero": numero.strip() if numero and numero.strip() else _generar_numero_albaran(),
         "fecha": datetime.now(),
-        "proveedor": "Proveedor pendiente",
-        "fabrica": "Almacén principal",
+        "proveedor": proveedor.strip() if proveedor and proveedor.strip() else "Proveedor pendiente",
+        "fabrica": fabrica.strip() if fabrica and fabrica.strip() else "Almacén principal",
         "precio_transporte": 0.0,
         "lineas": [],
     }
@@ -1883,7 +1883,9 @@ def lectura_codigos():
     if request.method == "POST":
         accion = request.form.get("accion")
         if accion == "nuevo_albaran":
-            nuevo_albaran = _crear_albaran()
+            proveedor = request.form.get("proveedor")
+            numero_albaran = request.form.get("numero")
+            nuevo_albaran = _crear_albaran(numero_albaran, proveedor)
             active_delivery_note_id = nuevo_albaran["id"]
             albaran_activo = nuevo_albaran
             flash(
@@ -1982,6 +1984,7 @@ def lectura_codigos():
                             "success",
                         )
 
+    numero_sugerido = _generar_numero_albaran()
     lineas_pendientes = _lineas_pendientes()
     gavetas_activas = _listar_gavetas_activas()
     albaranes_disponibles = sorted(
@@ -1995,6 +1998,7 @@ def lectura_codigos():
         gavetas_activas=gavetas_activas,
         albaran_activo=albaran_activo,
         albaranes=albaranes_disponibles,
+        numero_sugerido=numero_sugerido,
     )
 
 
