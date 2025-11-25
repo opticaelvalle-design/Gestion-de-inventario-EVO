@@ -1,5 +1,4 @@
 from datetime import datetime
-import csv
 import io
 import sqlite3
 from pathlib import Path
@@ -13,6 +12,7 @@ from flask import (
     send_file,
     url_for,
 )
+from openpyxl import Workbook
 
 DB_PATH = Path(__file__).with_name("inventario.db")
 
@@ -1057,17 +1057,16 @@ def crear_gavetas():
 
 @app.route("/crear-gavetas/exportar")
 def exportar_gavetas():
-    csv_buffer = io.StringIO()
-    writer = csv.writer(csv_buffer)
-    writer.writerow([
+    headers = [
         "Nombre",
         "Tipo",
         "Fecha de alta",
         "Unidades en inventario",
         "Unidades asignadas",
         "Unidades totales",
-    ])
+    ]
 
+    rows = []
     for ubicacion in storage_locations:
         unidades_inventario = sum(
             item["cantidad"] for item in inventory_items if item["ubicacion"].lower() == ubicacion["nombre"].lower()
@@ -1077,7 +1076,7 @@ def exportar_gavetas():
             for asignacion in gaveta_asignaciones.values()
             if asignacion["gaveta"]["nombre"].lower() == ubicacion["nombre"].lower()
         )
-        writer.writerow(
+        rows.append(
             [
                 ubicacion["nombre"],
                 ubicacion["tipo"],
@@ -1088,12 +1087,15 @@ def exportar_gavetas():
             ]
         )
 
-    output = io.BytesIO()
-    output.write(csv_buffer.getvalue().encode("utf-8"))
-    output.seek(0)
-    filename = f"gavetas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    output = _crear_excel(headers, rows, "Gavetas")
+    filename = f"gavetas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
-    return send_file(output, mimetype="text/csv", as_attachment=True, download_name=filename)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 @app.route("/crear-gavetas/<path:nombre>/exportar-csv")
@@ -1146,21 +1148,18 @@ def exportar_gaveta_csv(nombre: str):
         if not producto["descripcion"]:
             producto["descripcion"] = asignacion.get("descripcion", "")
 
-    csv_buffer = io.StringIO()
-    writer = csv.writer(csv_buffer)
-    writer.writerow(
-        [
-            "Código",
-            "Descripción",
-            "Unidades en inventario",
-            "Unidades asignadas",
-            "Total en gaveta",
-        ]
-    )
+    headers = [
+        "Código",
+        "Descripción",
+        "Unidades en inventario",
+        "Unidades asignadas",
+        "Total en gaveta",
+    ]
 
+    rows = []
     for producto in sorted(recuento_productos.values(), key=lambda item: item["codigo"].lower()):
         total = producto["inventario"] + producto["asignadas"]
-        writer.writerow(
+        rows.append(
             [
                 producto["codigo"],
                 producto["descripcion"],
@@ -1170,12 +1169,19 @@ def exportar_gaveta_csv(nombre: str):
             ]
         )
 
-    output = io.BytesIO()
-    output.write(csv_buffer.getvalue().encode("utf-8"))
-    output.seek(0)
-    filename = f"gaveta_{ubicacion['nombre'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    output = _crear_excel(
+        headers,
+        rows,
+        f"Gaveta {_sanitize_sheet_name(ubicacion['nombre'])[:31] or 'Gaveta'}",
+    )
+    filename = f"gaveta_{ubicacion['nombre'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
-    return send_file(output, mimetype="text/csv", as_attachment=True, download_name=filename)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 @app.route("/crear-gavetas/<path:nombre>/renombrar", methods=["POST"])
@@ -1820,21 +1826,19 @@ def subir_excel():
 
 @app.route("/subir-excel/plantilla")
 def descargar_plantilla_excel():
-    csv_buffer = io.StringIO()
-    writer = csv.writer(csv_buffer)
-    writer.writerow(["codigo", "nombre", "cantidad", "ubicacion"])
-    writer.writerow(["ABC123", "Tornillo M4", 25, "Gaveta A1"])
-    writer.writerow(["XYZ789", "Arandela 12mm", 40, "Baldas Zona B"])
-    writer.writerow(["LMN456", "Destornillador plano", 5, "Gaveta A1"])
+    headers = ["codigo", "nombre", "cantidad", "ubicacion"]
+    rows = [
+        ["ABC123", "Tornillo M4", 25, "Gaveta A1"],
+        ["XYZ789", "Arandela 12mm", 40, "Baldas Zona B"],
+        ["LMN456", "Destornillador plano", 5, "Gaveta A1"],
+    ]
 
-    output = io.BytesIO()
-    output.write(csv_buffer.getvalue().encode("utf-8"))
-    output.seek(0)
+    output = _crear_excel(headers, rows, "Plantilla carga")
     return send_file(
         output,
         as_attachment=True,
-        download_name="plantilla_carga_inventario.csv",
-        mimetype="text/csv",
+        download_name="plantilla_carga_inventario.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
@@ -1851,22 +1855,44 @@ def exportar_informes():
 
 @app.route("/exportar-informes/descargar")
 def descargar_informe():
-    csv_buffer = io.StringIO()
-    writer = csv.writer(csv_buffer)
-    writer.writerow(["Código", "Nombre", "Cantidad", "Ubicación"])
-    for item in inventory_items:
-        writer.writerow([item["codigo"], item["nombre"], item["cantidad"], item["ubicacion"]])
+    headers = ["Código", "Nombre", "Cantidad", "Ubicación"]
+    rows = [
+        [item["codigo"], item["nombre"], item["cantidad"], item["ubicacion"]]
+        for item in inventory_items
+    ]
 
-    output = io.BytesIO()
-    output.write(csv_buffer.getvalue().encode("utf-8"))
-    output.seek(0)
-    filename = f"informe_stock_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    output = _crear_excel(headers, rows, "Informe stock")
+    filename = f"informe_stock_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     return send_file(
         output,
-        mimetype="text/csv",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
         download_name=filename,
     )
+
+
+def _crear_excel(headers: list[str], rows: list[list], sheet_name: str = "Hoja 1") -> io.BytesIO:
+    """Genera un archivo Excel en memoria a partir de cabeceras y filas."""
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = _sanitize_sheet_name(sheet_name)[:31] or "Hoja 1"
+
+    worksheet.append(headers)
+    for fila in rows:
+        worksheet.append(fila)
+
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return output
+
+
+def _sanitize_sheet_name(name: str) -> str:
+    """Quita caracteres no válidos en nombres de pestaña de Excel."""
+
+    invalid_chars = "[]:*?/\\"
+    return "".join(char for char in name if char not in invalid_chars)
 
 
 @app.route("/buscar-articulos")
