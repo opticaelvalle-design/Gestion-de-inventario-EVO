@@ -1,10 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Pedido #{{ pedido.id }} · Gestión de Inventario EVO{% endblock %}
 {% block content %}
-<a class="button-link" href="{{ url_for('pedidos') }}" style="margin-bottom: 1rem; display: inline-flex; align-items: center; gap: 0.35rem;">← Volver al listado</a>
+<div class="section-header" style="margin-bottom: 1rem;">
+    <a class="button-link" href="{{ url_for('pedidos') }}" style="display: inline-flex; align-items: center; gap: 0.35rem;">← Volver al listado</a>
+    <div class="pill-group" style="gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end;">
+        {% set estado = pedido.estado.lower() %}
+        <span class="badge {% if 'pend' in estado %}badge-warning{% elif 'recib' in estado %}badge-success{% else %}badge-neutral{% endif %}">Estado: {{ pedido.estado }}</span>
+        <span class="badge badge-info">Pedido #{{ pedido.id }}</span>
+        <a class="button-link" href="#editar-pedido" style="display: inline-flex; align-items: center; background: #1d9bf0; color: white; padding: 0.4rem 0.65rem; border-radius: 6px;">Editar pedido</a>
+    </div>
+</div>
 
-<section>
-    <h2 class="section-title">Pedido #{{ pedido.id }}</h2>
+<section class="stacked-panel">
+    <div class="section-header" style="align-items: flex-start;">
+        <div>
+            <h2 class="section-title" style="margin: 0;">Pedido #{{ pedido.id }}</h2>
+            <p class="muted" style="margin: 0.35rem 0 0;">Resumen con totales y estado actualizado del pedido.</p>
+        </div>
+        <div class="pill-group">
+            <span class="badge badge-neutral">{{ pedido.fecha.strftime('%d/%m/%Y %H:%M') }}</span>
+            <span class="badge badge-info">{{ pedido.cliente }}</span>
+        </div>
+    </div>
     <div class="stats-grid">
         <div class="stat-card">
             <span>Cliente</span>
@@ -32,69 +49,110 @@
         </div>
     </div>
     {% if pedido.notas %}
-    <p><strong>Notas:</strong> {{ pedido.notas }}</p>
+    <div class="stacked-panel" style="padding: 1.25rem; box-shadow: none; border: 1px dashed #dcdde1;">
+        <h4 class="panel-title">Notas del pedido</h4>
+        <p class="panel-content" style="margin: 0;">{{ pedido.notas }}</p>
+    </div>
     {% endif %}
 </section>
 
+<section id="editar-pedido" class="card" style="margin: 1.5rem 0;">
+    <div class="section-header">
+        <div>
+            <h3 style="margin: 0 0 0.25rem;">Editar datos del pedido</h3>
+            <p class="muted" style="margin: 0;">Ajusta cliente, fecha, estado o notas desde esta ficha.</p>
+        </div>
+        <span class="badge badge-info">Edición directa</span>
+    </div>
+    <form method="post" action="{{ url_for('editar_pedido', pedido_id=pedido.id) }}" class="form-grid" style="gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end;">
+        <div>
+            <label for="cliente">Cliente</label>
+            <input type="text" id="cliente" name="cliente" value="{{ pedido.cliente }}" required />
+        </div>
+        <div>
+            <label for="fecha">Fecha</label>
+            <input type="datetime-local" id="fecha" name="fecha" value="{{ pedido.fecha.strftime('%Y-%m-%dT%H:%M') }}" required />
+        </div>
+        <div>
+            <label for="estado">Estado</label>
+            <select id="estado" name="estado" required>
+                {% set estados = ['Pendiente', 'Parcial', 'Recibido', 'Completado'] %}
+                {% for opcion in estados %}
+                    <option value="{{ opcion }}" {% if opcion.lower() == pedido.estado.lower() %}selected{% endif %}>{{ opcion }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="grid-column: 1 / -1;">
+            <label for="notas">Notas</label>
+            <textarea id="notas" name="notas" rows="3" placeholder="Observaciones adicionales">{{ pedido.notas or '' }}</textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; grid-column: 1 / -1; gap: 0.5rem; flex-wrap: wrap;">
+            <a class="button-link" href="#" onclick="window.scrollTo({ top: 0, behavior: 'smooth' }); return false;" style="display: inline-flex; align-items: center;">Volver arriba</a>
+            <button type="submit" style="padding: 0.55rem 1rem;">Guardar cambios</button>
+        </div>
+    </form>
+</section>
+
 <section>
-    <h3 class="section-title">Líneas del pedido</h3>
+    <div class="section-header" style="margin-bottom: 0.5rem;">
+        <h3 class="section-title" style="margin: 0;">Líneas del pedido</h3>
+        <p class="muted" style="margin: 0;">Consulta cantidades pedidas y pendientes con la asignación actual.</p>
+    </div>
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
-                    <th>PEDIDO</th>
-                    <th>CLIENTE</th>
-                    <th>CODIGO</th>
-                    <th>DESCRIPCIÓN</th>
-                    <th>CANTIDAD PEDIDA</th>
-                    <th>CANTIDAD RECIBIDA</th>
-                    <th>CANTIDAD PENDIENTE</th>
-                    <th>GAVETA ASIGNADA</th>
-                    <th>FECHA</th>
-                    <th>ACCIONES</th>
+                    <th>Producto</th>
+                    <th>Cantidades</th>
+                    <th>Asignación</th>
+                    <th>Seguimiento</th>
                 </tr>
             </thead>
             <tbody>
                 {% for linea in pedido.lineas %}
-                <tr>
-                    <td>#{{ pedido.id }}</td>
-                    <td>{{ pedido.cliente }}</td>
-                    <td>{{ linea.codigo }}</td>
-                    <td>{{ linea.descripcion }}</td>
-                    <td>{{ linea.cantidad_pedida }}</td>
-                    <td>{{ linea.cantidad_recibida }}</td>
-                    <td>{{ linea.cantidad_pendiente }}</td>
+                {% set clave = (pedido.id, linea.codigo.lower()) %}
+                {% set asignacion = asignaciones.get(clave) %}
+                <tr class="striped {% if linea.cantidad_pendiente > 0 %}row-warning{% else %}row-positive{% endif %}">
                     <td>
-                        {% set clave = (pedido.id, linea.codigo.lower()) %}
-                        {% set asignacion = asignaciones.get(clave) %}
+                        <div style="display: flex; flex-direction: column; gap: 0.15rem;">
+                            <strong>{{ linea.descripcion }}</strong>
+                            <span class="muted">Código: {{ linea.codigo }}</span>
+                            <small class="badge badge-neutral" style="width: fit-content;">Pedido #{{ pedido.id }}</small>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.4rem;">
+                            <div class="stat-card" style="padding: 0.35rem 0.5rem; box-shadow: none; border: 1px solid #e6e8eb;">
+                                <span style="font-size: 0.85rem;">Pedida</span>
+                                <strong style="font-size: 1rem;">{{ linea.cantidad_pedida }}</strong>
+                            </div>
+                            <div class="stat-card" style="padding: 0.35rem 0.5rem; box-shadow: none; border: 1px solid #e6e8eb;">
+                                <span style="font-size: 0.85rem;">Recibida</span>
+                                <strong style="font-size: 1rem;">{{ linea.cantidad_recibida }}</strong>
+                            </div>
+                            <div class="stat-card" style="padding: 0.35rem 0.5rem; box-shadow: none; border: 1px solid #e6e8eb;">
+                                <span style="font-size: 0.85rem;">Pendiente</span>
+                                <strong style="font-size: 1rem;">{{ linea.cantidad_pendiente }}</strong>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
                         {% if asignacion %}
                             <div style="display: flex; flex-direction: column; gap: 0.15rem;">
-                                <strong>{{ asignacion.gaveta.nombre }}</strong>
+                                <span class="badge badge-info" style="width: fit-content;">{{ asignacion.gaveta.nombre }}</span>
                                 <small>Unidades registradas: {{ asignacion.unidades }}</small>
                             </div>
                         {% else %}
-                            <em>Sin asignar</em>
+                            <em>Sin gaveta asignada</em>
                         {% endif %}
                     </td>
-                    <td>{{ pedido.fecha.strftime('%d/%m/%Y') }}</td>
                     <td>
-                        {% if gavetas_existentes %}
-                            <form method="post" action="{{ url_for('asignar_gaveta_pedido', pedido_id=pedido.id) }}" style="display: flex; flex-direction: column; gap: 0.35rem;">
-                                <input type="hidden" name="codigo" value="{{ linea.codigo }}" />
-                                <label for="gaveta_{{ linea.codigo }}" style="font-size: 0.9rem; font-weight: 600;">Asignar gaveta</label>
-                                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                                    <select name="gaveta_nombre" id="gaveta_{{ linea.codigo }}">
-                                        <option value="" disabled {% if not asignacion %}selected{% endif %}>Selecciona gaveta</option>
-                                        {% for gaveta in gavetas_existentes %}
-                                            <option value="{{ gaveta.nombre }}" {% if asignacion and gaveta.nombre == asignacion.gaveta.nombre %}selected{% endif %}>{{ gaveta.nombre }}</option>
-                                        {% endfor %}
-                                    </select>
-                                    <button type="submit" class="button-link" style="display: inline-flex; align-items: center; padding: 0.4rem 0.65rem;">Guardar</button>
-                                </div>
-                            </form>
-                        {% else %}
-                            <small>No hay gavetas creadas.</small>
-                        {% endif %}
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            {% set pendiente = linea.cantidad_pendiente %}
+                            <span class="badge {% if pendiente > 0 %}badge-warning{% else %}badge-success{% endif %}" style="width: fit-content;">{% if pendiente > 0 %}Pendiente{% else %}Recibido{% endif %}</span>
+                            <small class="muted">Cliente: {{ pedido.cliente }}</small>
+                            <small class="muted">Fecha: {{ pedido.fecha.strftime('%d/%m/%Y %H:%M') }}</small>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
