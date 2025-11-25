@@ -163,6 +163,13 @@
             display: grid;
             gap: 1rem;
         }
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
         label {
             font-weight: 600;
             display: block;
@@ -199,6 +206,15 @@
             background-color: #40739e;
             transform: translateY(-1px);
         }
+        .muted {
+            color: #57606f;
+        }
+        .table-wrapper {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
         .inline-form {
             display: grid;
             gap: 0.35rem;
@@ -231,6 +247,9 @@
         }
         tr:last-child td {
             border-bottom: none;
+        }
+        tr.striped:nth-child(even) td {
+            background-color: #f8f9fb;
         }
         .stats-grid {
             display: grid;
@@ -277,6 +296,70 @@
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
             color: #718093;
             text-align: center;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.7rem;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 0.01em;
+            border: 1px solid transparent;
+        }
+        .badge-success {
+            background: #eaf7ef;
+            color: #1b8f45;
+            border-color: #c5e8d1;
+        }
+        .badge-warning {
+            background: #fff6e5;
+            color: #b56b00;
+            border-color: #ffe0ad;
+        }
+        .badge-info {
+            background: #e7f0ff;
+            color: #2459c5;
+            border-color: #c9dbff;
+        }
+        .badge-neutral {
+            background: #f1f2f6;
+            color: #2f3640;
+            border-color: #dcdde1;
+        }
+        .pill-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .table-note {
+            margin: 0.5rem 0 0;
+            color: #57606f;
+            font-size: 0.95rem;
+        }
+        .row-positive td {
+            background-color: #f3fdf7;
+        }
+        .row-warning td {
+            background-color: #fff9ed;
+        }
+        .stacked-panel {
+            background: #fff;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            display: grid;
+            gap: 0.5rem;
+        }
+        .panel-title {
+            margin: 0;
+            color: #273c75;
+        }
+        .panel-content {
+            margin: 0;
+            color: #4b4b4b;
+            line-height: 1.6;
         }
         @media (max-width: 640px) {
             header h1 {
