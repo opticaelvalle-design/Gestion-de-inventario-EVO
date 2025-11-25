@@ -12,7 +12,7 @@ from flask import (
     send_file,
     url_for,
 )
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 DB_PATH = Path(__file__).with_name("inventario.db")
 
@@ -366,6 +366,106 @@ def _inicializar_optica_demo():
                 float(producto.get("precio_pvp", 0)),
                 int(producto.get("cantidad", 0)),
             )
+
+
+def _importar_excel_optica(archivo, sucursal: str):
+    try:
+        workbook = load_workbook(archivo, data_only=True)
+    except Exception as exc:  # pragma: no cover - validación defensiva
+        raise ValueError("No se pudo leer el Excel. Verifica el formato.") from exc
+
+    sheet = workbook.active
+    rows = list(sheet.iter_rows(values_only=True))
+    if not rows:
+        raise ValueError("El archivo está vacío.")
+
+    headers = [
+        str(cell).strip().lower() if cell is not None else "" for cell in rows[0]
+    ]
+    header_map = {nombre: idx for idx, nombre in enumerate(headers)}
+    required_headers = {"codigo", "nombre", "cantidad"}
+
+    if not required_headers.issubset(header_map):
+        raise ValueError(
+            "La plantilla debe incluir las columnas: codigo, nombre y cantidad."
+        )
+
+    def _leer_valor(row, key, default=None):
+        idx = header_map.get(key)
+        if idx is None or idx >= len(row):
+            return default
+        valor = row[idx]
+        if valor is None:
+            return default
+        return valor
+
+    procesadas = creadas = actualizadas = omitidas = 0
+
+    for row in rows[1:]:
+        if all(cell is None or str(cell).strip() == "" for cell in row):
+            continue
+
+        procesadas += 1
+        codigo = str(_leer_valor(row, "codigo", "")).strip()
+        nombre = str(_leer_valor(row, "nombre", "")).strip()
+        if not codigo or not nombre:
+            omitidas += 1
+            continue
+
+        cantidad_valor = _leer_valor(row, "cantidad", 0)
+        try:
+            cantidad = int(float(cantidad_valor))
+        except (TypeError, ValueError):
+            omitidas += 1
+            continue
+
+        if cantidad < 0:
+            omitidas += 1
+            continue
+
+        tipo = str(_leer_valor(row, "tipo", "")).strip()
+        precio_mayor = _leer_valor(row, "precio_mayor", 0) or 0
+        precio_pvp = _leer_valor(row, "precio_pvp", 0) or 0
+
+        try:
+            precio_mayor = float(precio_mayor)
+        except (TypeError, ValueError):
+            precio_mayor = 0.0
+
+        try:
+            precio_pvp = float(precio_pvp)
+        except (TypeError, ValueError):
+            precio_pvp = 0.0
+
+        existente = _buscar_producto_optica(sucursal, codigo)
+        if existente:
+            existente.update(
+                {
+                    "nombre": nombre,
+                    "tipo": tipo,
+                    "precio_mayor": precio_mayor,
+                    "precio_pvp": precio_pvp,
+                }
+            )
+            existente["cantidad"] += cantidad
+            _registrar_movimiento_optica(
+                existente,
+                sucursal,
+                f"Importación Excel: +{cantidad} uds",
+            )
+            actualizadas += 1
+        else:
+            _crear_producto_optica(
+                sucursal, codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad
+            )
+            creadas += 1
+
+    return {
+        "procesadas": procesadas,
+        "creadas": creadas,
+        "actualizadas": actualizadas,
+        "omitidas": omitidas,
+    }
 
 
 def _persistir_linea_pedido(pedido_id: int, linea: dict):
@@ -824,6 +924,8 @@ def stock_opticas():
     if sucursal not in OPTICA_BRANCHES:
         sucursal = OPTICA_BRANCHES[0]
 
+    termino_busqueda = request.args.get("buscar", "").strip().lower()
+
     if request.method == "POST":
         accion = request.form.get("accion")
         if accion == "nuevo_producto":
@@ -858,6 +960,28 @@ def stock_opticas():
                         sucursal, codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad
                     )
                 flash("Producto guardado en el stock de ópticas.", "success")
+            return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+        if accion == "importar_excel":
+            archivo = request.files.get("archivo_excel")
+            if not archivo or archivo.filename == "":
+                flash("Selecciona un archivo Excel para importar.", "error")
+            elif not archivo.filename.lower().endswith(".xlsx"):
+                flash("El archivo debe tener extensión .xlsx.", "error")
+            else:
+                try:
+                    resumen = _importar_excel_optica(archivo, sucursal)
+                except ValueError as exc:
+                    flash(str(exc), "error")
+                else:
+                    flash(
+                        "Importación completada: "
+                        f"{resumen['procesadas']} filas procesadas, "
+                        f"{resumen['creadas']} creadas, "
+                        f"{resumen['actualizadas']} actualizadas, "
+                        f"{resumen['omitidas']} omitidas.",
+                        "success",
+                    )
             return redirect(url_for("stock_opticas", sucursal=sucursal))
 
         if accion == "ajustar":
@@ -1025,15 +1149,70 @@ def stock_opticas():
             return redirect(url_for("stock_opticas", sucursal=sucursal))
 
     productos = sorted(
-        _asegurar_sucursal_optica(sucursal), key=lambda item: item["nombre"].lower()
+        [
+            item
+            for item in _asegurar_sucursal_optica(sucursal)
+            if not termino_busqueda
+            or termino_busqueda in item["codigo"].lower()
+            or termino_busqueda in item["nombre"].lower()
+        ],
+        key=lambda item: item["nombre"].lower(),
     )
-    totales_sucursal = sum(item["cantidad"] for item in productos)
+    totales_sucursal = sum(
+        item["cantidad"] for item in _asegurar_sucursal_optica(sucursal)
+    )
     return render_template(
         "stock_opticas.html",
         sucursal=sucursal,
         sucursales=OPTICA_BRANCHES,
         productos=productos,
         totales_sucursal=totales_sucursal,
+        termino_busqueda=termino_busqueda,
+    )
+
+
+@app.route("/stock-opticas/plantilla")
+def descargar_plantilla_stock_opticas():
+    headers = ["codigo", "nombre", "tipo", "precio_mayor", "precio_pvp", "cantidad"]
+    output = _crear_excel(headers, [], "Plantilla stock ópticas")
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="plantilla_stock_opticas.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@app.route("/stock-opticas/exportar")
+def exportar_stock_opticas():
+    sucursal = request.args.get("sucursal") or OPTICA_BRANCHES[0]
+    if sucursal not in OPTICA_BRANCHES:
+        sucursal = OPTICA_BRANCHES[0]
+
+    headers = ["Código", "Nombre", "Tipo", "Precio mayorista", "Precio PVP", "Cantidad"]
+    productos = _asegurar_sucursal_optica(sucursal)
+    rows = [
+        [
+            item["codigo"],
+            item["nombre"],
+            item.get("tipo", ""),
+            item.get("precio_mayor", 0),
+            item.get("precio_pvp", 0),
+            item.get("cantidad", 0),
+        ]
+        for item in productos
+    ]
+
+    output = _crear_excel(headers, rows, f"Stock {sucursal}")
+    filename = (
+        f"stock_opticas_{sucursal.replace(' ', '_').lower()}_"
+        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    )
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
     )
 
 

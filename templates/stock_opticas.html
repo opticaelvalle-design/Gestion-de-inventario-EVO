@@ -7,20 +7,48 @@
             <h2 style="margin: 0;">Stock Ópticas</h2>
             <p style="margin: 0.35rem 0 0; color: #4b4b4b;">Control independiente para las cuatro sucursales.</p>
         </div>
-        <form method="get" style="display: flex; gap: 0.5rem; align-items: center;">
-            <label for="sucursal" style="margin: 0; font-weight: 600;">Sucursal</label>
-            <select name="sucursal" id="sucursal" onchange="this.form.submit()">
-                {% for nombre in sucursales %}
-                    <option value="{{ nombre }}" {% if nombre == sucursal %}selected{% endif %}>{{ nombre }}</option>
-                {% endfor %}
-            </select>
-        </form>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; justify-content: flex-end;">
+            <form method="get" style="display: flex; gap: 0.5rem; align-items: center;">
+                <label for="sucursal" style="margin: 0; font-weight: 600;">Sucursal</label>
+                <select name="sucursal" id="sucursal" onchange="this.form.submit()">
+                    {% for nombre in sucursales %}
+                        <option value="{{ nombre }}" {% if nombre == sucursal %}selected{% endif %}>{{ nombre }}</option>
+                    {% endfor %}
+                </select>
+                {% if termino_busqueda %}
+                    <input type="hidden" name="buscar" value="{{ termino_busqueda }}">
+                {% endif %}
+            </form>
+            <form method="get" style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="hidden" name="sucursal" value="{{ sucursal }}">
+                <label for="buscar" style="margin: 0; font-weight: 600;">Buscar</label>
+                <input type="search" id="buscar" name="buscar" placeholder="Código o nombre" value="{{ termino_busqueda }}">
+                <button type="submit">Buscar</button>
+                {% if termino_busqueda %}
+                    <a class="button-link" href="{{ url_for('stock_opticas', sucursal=sucursal) }}">Limpiar</a>
+                {% endif %}
+            </form>
+        </div>
     </div>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
         <div class="stat-card" style="background-color: #f5f6fa; box-shadow: none; border: 1px solid #dcdde1;">
             <h3 style="margin-top: 0; color: #273c75;">Resumen sucursal</h3>
             <p style="margin: 0;">Productos: <strong>{{ productos|length }}</strong></p>
             <p style="margin: 0.25rem 0 0;">Unidades totales: <strong>{{ totales_sucursal }}</strong></p>
+        </div>
+        <div style="background: #fff; border-radius: 12px; padding: 1rem; border: 1px solid #dcdde1; display: grid; gap: 0.75rem;">
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                <a href="{{ url_for('descargar_plantilla_stock_opticas') }}" class="button-link" style="background: #f5f6fa; border: 1px solid #dcdde1;">Descargar plantilla en blanco</a>
+                <a href="{{ url_for('exportar_stock_opticas', sucursal=sucursal) }}" class="button-link" style="background: #273c75; color: #fff;">Exportar stock de {{ sucursal }}</a>
+            </div>
+            <form method="post" enctype="multipart/form-data" style="display: grid; gap: 0.35rem;">
+                <input type="hidden" name="accion" value="importar_excel">
+                <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                <label for="archivo_excel" style="font-weight: 600;">Crear artículos desde Excel (.xlsx)</label>
+                <input type="file" id="archivo_excel" name="archivo_excel" accept=".xlsx" required>
+                <small style="color: #718093;">Columnas esperadas: codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad.</small>
+                <button type="submit">Importar archivo</button>
+            </form>
         </div>
         <div style="background: #fff; border-radius: 12px; padding: 1rem; border: 1px dashed #40739e;">
             <form method="post" id="lectura-form" style="margin: 0; display: grid; gap: 0.5rem;">
