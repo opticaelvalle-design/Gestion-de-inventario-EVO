@@ -1,15 +1,58 @@
 {% extends "base.html" %}
 {% block title %}Stock ópticas · Gestión de Inventario EVO{% endblock %}
+{% block extra_styles %}
+<style>
+    .stock-layout { display: grid; gap: 1.25rem; }
+    .stock-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; }
+    .stock-title { margin: 0; }
+    .stock-subtitle { margin: 0.35rem 0 0; color: #4b4b4b; }
+    .stock-controls { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+    .control-form { display: flex; gap: 0.5rem; align-items: center; }
+    .control-form label { margin: 0; }
+    .stock-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+    .stat-card--muted { background-color: #f5f6fa; box-shadow: none; border: 1px solid #dcdde1; }
+    .action-panel { background: #fff; border-radius: 12px; padding: 1rem; border: 1px solid #dcdde1; display: grid; gap: 0.75rem; }
+    .action-panel__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .action-panel--dashed { border-style: dashed; border-color: #40739e; }
+    .inline-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .action-form { display: none; align-items: end; gap: 0.35rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    .action-form.is-visible { display: grid; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); align-items: center; justify-content: center; padding: 1rem; }
+    .modal.is-visible { display: flex; }
+    .modal__content { background: #fff; padding: 1.5rem; border-radius: 12px; width: 100%; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15); }
+    .modal__header { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+    .modal__title { margin: 0; }
+    .modal__subtitle { margin: 0.25rem 0 0; color: #4b4b4b; }
+    .modal--small .modal__content { max-width: 420px; }
+    .modal--wide .modal__content { max-width: 600px; max-height: 90vh; overflow: auto; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
+    .form-row { display: grid; gap: 0.35rem; }
+    .form-row.inline-end { align-items: end; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .form-row.flex-end { display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }
+    .muted-text { color: #718093; }
+    .table-section { margin-top: 1.5rem; }
+    .section-title { margin-top: 0; }
+    .section-spaced { margin-top: 1.5rem; }
+    .align-end { align-items: end; }
+    .button-link--muted { background: #f5f6fa; border: 1px solid #dcdde1; color: #273c75; }
+    .button-link--neutral { background: #dcdde1; color: #2f3640; }
+    .button-link--danger { background: #ffe0e0; color: #c23616; }
+    .spaced-top { margin-top: 1rem; }
+    .list-default { padding-left: 1.25rem; margin: 0; }
+    .is-hidden { display: none; }
+</style>
+{% endblock %}
+
 {% block content %}
-<section class="card" style="gap: 1rem;">
-    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; align-items: center;">
+<section class="card stock-layout">
+    <div class="stock-header">
         <div>
-            <h2 style="margin: 0;">Stock Ópticas</h2>
-            <p style="margin: 0.35rem 0 0; color: #4b4b4b;">Control independiente para las cuatro sucursales.</p>
+            <h2 class="stock-title">Stock Ópticas</h2>
+            <p class="stock-subtitle">Control independiente para las cuatro sucursales.</p>
         </div>
-        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; justify-content: flex-end;">
-            <form method="get" style="display: flex; gap: 0.5rem; align-items: center;">
-                <label for="sucursal" style="margin: 0; font-weight: 600;">Sucursal</label>
+        <div class="stock-controls">
+            <form method="get" class="control-form">
+                <label for="sucursal">Sucursal</label>
                 <select name="sucursal" id="sucursal" onchange="this.form.submit()">
                     {% for nombre in sucursales %}
                         <option value="{{ nombre }}" {% if nombre == sucursal %}selected{% endif %}>{{ nombre }}</option>
@@ -19,9 +62,9 @@
                     <input type="hidden" name="buscar" value="{{ termino_busqueda }}">
                 {% endif %}
             </form>
-            <form method="get" style="display: flex; gap: 0.5rem; align-items: center;">
+            <form method="get" class="control-form">
                 <input type="hidden" name="sucursal" value="{{ sucursal }}">
-                <label for="buscar" style="margin: 0; font-weight: 600;">Buscar</label>
+                <label for="buscar">Buscar</label>
                 <input type="search" id="buscar" name="buscar" placeholder="Código o nombre" value="{{ termino_busqueda }}">
                 <button type="submit">Buscar</button>
                 {% if termino_busqueda %}
@@ -30,77 +73,77 @@
             </form>
         </div>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
-        <div class="stat-card" style="background-color: #f5f6fa; box-shadow: none; border: 1px solid #dcdde1;">
-            <h3 style="margin-top: 0; color: #273c75;">Resumen sucursal</h3>
-            <p style="margin: 0;">Productos: <strong>{{ productos|length }}</strong></p>
-            <p style="margin: 0.25rem 0 0;">Unidades totales: <strong>{{ totales_sucursal }}</strong></p>
+    <div class="stock-grid">
+        <div class="stat-card stat-card--muted">
+            <h3 class="section-title">Resumen sucursal</h3>
+            <p>Productos: <strong>{{ productos|length }}</strong></p>
+            <p>Unidades totales: <strong>{{ totales_sucursal }}</strong></p>
         </div>
-        <div style="background: #fff; border-radius: 12px; padding: 1rem; border: 1px solid #dcdde1; display: grid; gap: 0.75rem;">
-            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                <a href="{{ url_for('descargar_plantilla_stock_opticas') }}" class="button-link" style="background: #f5f6fa; border: 1px solid #dcdde1;">Descargar plantilla en blanco</a>
-                <a href="{{ url_for('exportar_stock_opticas', sucursal=sucursal) }}" class="button-link" style="background: #273c75; color: #fff;">Exportar stock de {{ sucursal }}</a>
+        <div class="action-panel">
+            <div class="action-panel__actions">
+                <a href="{{ url_for('descargar_plantilla_stock_opticas') }}" class="button-link button-link--muted">Descargar plantilla en blanco</a>
+                <a href="{{ url_for('exportar_stock_opticas', sucursal=sucursal) }}" class="button-link">Exportar stock de {{ sucursal }}</a>
             </div>
-            <form method="post" enctype="multipart/form-data" style="display: grid; gap: 0.35rem;">
+            <form method="post" enctype="multipart/form-data" class="stack">
                 <input type="hidden" name="accion" value="importar_excel">
                 <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-                <label for="archivo_excel" style="font-weight: 600;">Crear artículos desde Excel (.xlsx)</label>
+                <label for="archivo_excel">Crear artículos desde Excel (.xlsx)</label>
                 <input type="file" id="archivo_excel" name="archivo_excel" accept=".xlsx" required>
-                <small style="color: #718093;">Columnas esperadas: codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad.</small>
+                <small class="muted-text">Columnas esperadas: codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad.</small>
                 <button type="submit">Importar archivo</button>
             </form>
         </div>
-        <div style="background: #fff; border-radius: 12px; padding: 1rem; border: 1px dashed #40739e;">
-            <form method="post" id="lectura-form" style="margin: 0; display: grid; gap: 0.5rem;">
+        <div class="action-panel action-panel--dashed">
+            <form method="post" id="lectura-form" class="stack">
                 <input type="hidden" name="accion" value="lectura_codigo">
                 <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-                <label for="codigo_barras" style="font-weight: 600;">Entrada rápida por código de barras</label>
-                <div style="display: flex; gap: 0.5rem;">
+                <label for="codigo_barras">Entrada rápida por código de barras</label>
+                <div class="inline-actions">
                     <input type="text" name="codigo_barras" id="codigo_barras" placeholder="Escanea o escribe el código" required autofocus>
                     <button type="submit">Registrar</button>
                 </div>
-                <small style="color: #718093;">Tras pulsar Enter el campo se limpia para la siguiente lectura.</small>
+                <small class="muted-text">Tras pulsar Enter el campo se limpia para la siguiente lectura.</small>
             </form>
         </div>
     </div>
 </section>
 
-<section class="card" style="margin-top: 1.5rem;">
-    <h3 style="margin-top: 0;">Añadir producto a {{ sucursal }}</h3>
-    <form method="post" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end;">
+<section class="card section-spaced">
+    <h3 class="section-title">Añadir producto a {{ sucursal }}</h3>
+    <form method="post" class="form-grid align-end">
         <input type="hidden" name="accion" value="nuevo_producto">
         <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-        <div>
+        <div class="form-row">
             <label for="codigo">Código</label>
             <input type="text" id="codigo" name="codigo" placeholder="Ej: OP-5005" required>
         </div>
-        <div>
+        <div class="form-row">
             <label for="nombre">Nombre</label>
             <input type="text" id="nombre" name="nombre" placeholder="Nombre comercial" required>
         </div>
-        <div>
+        <div class="form-row">
             <label for="tipo">Tipo</label>
             <input type="text" id="tipo" name="tipo" placeholder="Montura, lente...">
         </div>
-        <div>
+        <div class="form-row">
             <label for="precio_mayor">Precio mayorista (€)</label>
             <input type="number" step="0.01" id="precio_mayor" name="precio_mayor" value="0">
         </div>
-        <div>
+        <div class="form-row">
             <label for="precio_pvp">Precio PVP (€)</label>
             <input type="number" step="0.01" id="precio_pvp" name="precio_pvp" value="0">
         </div>
-        <div>
+        <div class="form-row">
             <label for="cantidad">Cantidad</label>
             <input type="number" id="cantidad" name="cantidad" min="1" value="1" required>
         </div>
-        <div>
+        <div class="form-row">
             <button type="submit">Guardar producto</button>
         </div>
     </form>
 </section>
 
-<section style="margin-top: 1.5rem;">
+<section class="table-section">
     <table>
         <thead>
             <tr>
@@ -120,36 +163,36 @@
                         <td>{{ producto.tipo or 'N/D' }}</td>
                         <td><strong>{{ producto.cantidad }}</strong></td>
                         <td>
-                            <div data-actions style="display: grid; gap: 0.5rem;">
-                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+                            <div data-actions class="stack">
+                                <div class="inline-actions">
                                     <button type="button" class="button-link" data-toggle-form="add" aria-label="Añadir unidades">Añadir</button>
                                     <button type="button" class="button-link" data-retirar data-codigo="{{ producto.codigo }}" data-nombre="{{ producto.nombre }}" data-max="{{ producto.cantidad }}">Retirar</button>
                                     <button type="button" class="button-link" data-toggle-form="transfer" aria-label="Transferir unidades">Transferir</button>
                                     <button type="button" class="button-link" data-detalle data-producto='{{ producto | tojson }}' data-sucursal="{{ sucursal }}">Ver detalle</button>
                                 </div>
-                                <form method="post" class="inline-form action-form" data-form="add" style="display: none; align-items: end; gap: 0.35rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+                                <form method="post" class="inline-form action-form" data-form="add">
                                     <input type="hidden" name="accion" value="ajustar">
                                     <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
                                     <input type="hidden" name="codigo" value="{{ producto.codigo }}">
-                                    <label style="font-weight: 600;">Unidades a añadir</label>
+                                    <label>Unidades a añadir</label>
                                     <input type="number" name="cantidad" min="1" value="1">
-                                    <div style="display: flex; gap: 0.35rem;">
+                                    <div class="inline-actions">
                                         <button type="submit">Confirmar</button>
                                         <button type="button" class="button-link" data-cancel-form="add">Cancelar</button>
                                     </div>
                                 </form>
-                                <form method="post" class="inline-form action-form" data-form="transfer" style="display: none; align-items: end; gap: 0.35rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+                                <form method="post" class="inline-form action-form" data-form="transfer">
                                     <input type="hidden" name="accion" value="transferir">
                                     <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
                                     <input type="hidden" name="codigo" value="{{ producto.codigo }}">
-                                    <label style="font-weight: 600;">Destino y unidades</label>
+                                    <label>Destino y unidades</label>
                                     <select name="destino">
                                         {% for destino in sucursales %}
                                             <option value="{{ destino }}" {% if destino == sucursal %}disabled{% endif %}>{{ destino }}</option>
                                         {% endfor %}
                                     </select>
                                     <input type="number" name="cantidad" min="1" value="1">
-                                    <div style="display: flex; gap: 0.35rem;">
+                                    <div class="inline-actions">
                                         <button type="submit">Confirmar</button>
                                         <button type="button" class="button-link" data-cancel-form="transfer">Cancelar</button>
                                     </div>
@@ -167,86 +210,86 @@
     </table>
 </section>
 
-<div id="motivo-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); align-items: center; justify-content: center;">
-    <div style="background: #fff; padding: 1.5rem; border-radius: 12px; max-width: 420px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
-        <h3 style="margin-top: 0;">Motivo de retirada</h3>
-        <p style="margin-top: 0; color: #4b4b4b;">Selecciona o escribe el motivo para retirar unidades.</p>
-        <div style="display: grid; gap: 0.5rem;">
+<div id="motivo-modal" class="modal modal--small">
+    <div class="modal__content">
+        <h3 class="modal__title">Motivo de retirada</h3>
+        <p class="modal__subtitle">Selecciona o escribe el motivo para retirar unidades.</p>
+        <div class="stack">
             <button type="button" class="button-link" data-motivo>Amazon</button>
             <button type="button" class="button-link" data-motivo>Avelino</button>
             <button type="button" class="button-link" data-motivo>Privé</button>
             <button type="button" class="button-link" data-motivo>Miravia</button>
-            <div style="display: grid; gap: 0.35rem;">
-                <label for="motivo_personalizado" style="font-weight: 600;">Otro motivo</label>
+            <div class="form-row">
+                <label for="motivo_personalizado">Otro motivo</label>
                 <input type="text" id="motivo_personalizado" placeholder="Describe el motivo">
             </div>
         </div>
-        <form method="post" id="motivo-form" style="margin-top: 1rem; display: grid; gap: 0.35rem;">
+        <form method="post" id="motivo-form" class="stack spaced-top">
             <input type="hidden" name="accion" value="retirar">
             <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
             <input type="hidden" name="codigo" id="motivo-codigo">
             <input type="hidden" name="motivo" id="motivo-valor">
-            <label for="motivo-cantidad" style="font-weight: 600;">Unidades a retirar</label>
+            <label for="motivo-cantidad">Unidades a retirar</label>
             <input type="number" name="cantidad" id="motivo-cantidad" min="1" value="1">
-            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                <button type="button" class="button-link" id="cancelar-motivo" style="background: #dcdde1; color: #2f3640;">Cancelar</button>
+            <div class="form-row flex-end">
+                <button type="button" class="button-link button-link--neutral" id="cancelar-motivo">Cancelar</button>
                 <button type="submit">Confirmar retirada</button>
             </div>
         </form>
     </div>
 </div>
 
-<div id="detalle-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); align-items: center; justify-content: center;">
-    <div style="background: #fff; padding: 1.5rem; border-radius: 12px; max-width: 600px; width: 100%; max-height: 90vh; overflow: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
-        <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: center;">
+<div id="detalle-modal" class="modal modal--wide">
+    <div class="modal__content">
+        <div class="modal__header">
             <div>
-                <h3 id="detalle-titulo" style="margin: 0;"></h3>
-                <p id="detalle-subtitulo" style="margin: 0.25rem 0 0; color: #4b4b4b;"></p>
+                <h3 id="detalle-titulo" class="modal__title"></h3>
+                <p id="detalle-subtitulo" class="modal__subtitle"></p>
             </div>
-            <button type="button" class="button-link" id="cerrar-detalle" style="background: #dcdde1; color: #2f3640;">Cerrar</button>
+            <button type="button" class="button-link button-link--neutral" id="cerrar-detalle">Cerrar</button>
         </div>
-        <form id="detalle-form" method="post" style="margin-top: 1rem; display: grid; gap: 0.75rem;">
+        <form id="detalle-form" method="post" class="stack spaced-top">
             <input type="hidden" name="accion" value="actualizar_producto">
             <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
             <input type="hidden" name="codigo_original" id="detalle-codigo-original">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
-                <div style="display: grid; gap: 0.35rem;">
-                    <label for="detalle-codigo" style="font-weight: 600;">Código</label>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="detalle-codigo">Código</label>
                     <input type="text" id="detalle-codigo" name="codigo" required>
                 </div>
-                <div style="display: grid; gap: 0.35rem;">
-                    <label for="detalle-tipo" style="font-weight: 600;">Tipo</label>
+                <div class="form-row">
+                    <label for="detalle-tipo">Tipo</label>
                     <input type="text" id="detalle-tipo" name="tipo">
                 </div>
-                <div style="display: grid; gap: 0.35rem;">
-                    <label for="detalle-mayor" style="font-weight: 600;">Precio mayorista (€)</label>
+                <div class="form-row">
+                    <label for="detalle-mayor">Precio mayorista (€)</label>
                     <input type="number" step="0.01" id="detalle-mayor" name="precio_mayor" min="0" value="0">
                 </div>
-                <div style="display: grid; gap: 0.35rem;">
-                    <label for="detalle-pvp" style="font-weight: 600;">Precio PVP (€)</label>
+                <div class="form-row">
+                    <label for="detalle-pvp">Precio PVP (€)</label>
                     <input type="number" step="0.01" id="detalle-pvp" name="precio_pvp" min="0" value="0">
                 </div>
             </div>
-            <div style="display: grid; gap: 0.35rem;">
-                <label for="detalle-nombre" style="font-weight: 600;">Nombre</label>
+            <div class="form-row">
+                <label for="detalle-nombre">Nombre</label>
                 <input type="text" id="detalle-nombre" name="nombre" required>
             </div>
-            <div style="display: grid; gap: 0.35rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end;">
-                <div style="display: grid; gap: 0.35rem;">
-                    <label for="detalle-cantidad" style="font-weight: 600;">Cantidad</label>
+            <div class="form-row inline-end">
+                <div class="form-row">
+                    <label for="detalle-cantidad">Cantidad</label>
                     <input type="number" id="detalle-cantidad" name="cantidad" min="0" value="0">
                 </div>
-                <div style="display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
-                    <button type="button" class="button-link" id="eliminar-producto" style="background: #ffe0e0; color: #c23616;">Eliminar producto</button>
+                <div class="form-row flex-end">
+                    <button type="button" class="button-link button-link--danger" id="eliminar-producto">Eliminar producto</button>
                     <button type="submit">Guardar cambios</button>
                 </div>
             </div>
         </form>
-        <div style="margin-top: 1rem;">
+        <div class="stack spaced-top">
             <strong>Historial de movimientos</strong>
-            <ul id="detalle-historial" style="padding-left: 1.25rem; margin-top: 0.5rem;"></ul>
+            <ul id="detalle-historial" class="list-default"></ul>
         </div>
-        <form id="eliminar-form" method="post" style="display: none;">
+        <form id="eliminar-form" method="post" class="is-hidden">
             <input type="hidden" name="accion" value="eliminar_producto">
             <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
             <input type="hidden" name="codigo" id="eliminar-codigo">
@@ -274,7 +317,7 @@
             motivoCantidad.max = btn.dataset.max || '';
             motivoValor.value = '';
             motivoPersonalizado.value = '';
-            motivoModal.style.display = 'flex';
+            motivoModal.classList.add('is-visible');
         });
     });
 
@@ -292,7 +335,7 @@
     });
 
     cancelarMotivo.addEventListener('click', () => {
-        motivoModal.style.display = 'none';
+        motivoModal.classList.remove('is-visible');
     });
 
     const actionButtons = document.querySelectorAll('[data-toggle-form]');
@@ -304,7 +347,7 @@
             const targetForm = actionsWrapper?.querySelector(`[data-form="${button.dataset.toggleForm}"]`);
 
             actionsWrapper?.querySelectorAll('.action-form').forEach(form => {
-                form.style.display = form === targetForm ? 'grid' : 'none';
+                form.classList.toggle('is-visible', form === targetForm);
             });
 
             if (targetForm) {
@@ -321,7 +364,7 @@
         button.addEventListener('click', () => {
             const actionsWrapper = button.closest('[data-actions]');
             actionsWrapper?.querySelectorAll('.action-form').forEach(form => {
-                form.style.display = 'none';
+                form.classList.remove('is-visible');
             });
         });
     });
@@ -367,12 +410,12 @@
                 li.textContent = 'Sin movimientos registrados';
                 detalleHistorial.appendChild(li);
             }
-            detalleModal.style.display = 'flex';
+            detalleModal.classList.add('is-visible');
         });
     });
 
     cerrarDetalle.addEventListener('click', () => {
-        detalleModal.style.display = 'none';
+        detalleModal.classList.remove('is-visible');
     });
 
     eliminarProducto.addEventListener('click', () => {
