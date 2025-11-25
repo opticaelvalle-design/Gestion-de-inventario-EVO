@@ -1903,6 +1903,82 @@ def lectura_codigos():
                 )
             else:
                 flash("Selecciona un albarán válido para continuar.", "warning")
+        elif accion == "ajustar_linea":
+            pedido_id = request.form.get("pedido_id", type=int)
+            codigo_linea = request.form.get("codigo_linea", "").strip()
+            nuevas_recibidas = request.form.get("cantidad_recibida", type=int)
+            pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+            linea = None
+            if pedido:
+                linea = next(
+                    (linea for linea in pedido["lineas"] if linea["codigo"].lower() == codigo_linea.lower()),
+                    None,
+                )
+            if not pedido or not linea:
+                flash("No se encontró la línea a ajustar.", "error")
+            elif nuevas_recibidas is None or nuevas_recibidas < 0:
+                flash("Indica una cantidad válida para ajustar.", "warning")
+            else:
+                limite = max(linea["cantidad_pedida"], 0)
+                valor_ajustado = min(nuevas_recibidas, limite)
+                linea["cantidad_recibida"] = valor_ajustado
+                linea["cantidad_pendiente"] = max(linea["cantidad_pedida"] - valor_ajustado, 0)
+                _persistir_linea_pedido(pedido_id, linea)
+                flash(
+                    f"Línea {codigo_linea} del pedido #{pedido_id} actualizada: "
+                    f"{linea['cantidad_recibida']}/{linea['cantidad_pedida']} recibidas.",
+                    "success",
+                )
+        elif accion == "ajustar_gaveta":
+            pedido_id = request.form.get("pedido_id", type=int)
+            codigo_linea = request.form.get("codigo_linea", "").strip()
+            unidades_objetivo = request.form.get("unidades", type=int, default=0)
+            clave = _clave_gaveta(pedido_id, codigo_linea)
+            asignacion = gaveta_asignaciones.get(clave)
+            if not asignacion:
+                flash("No se encontró la gaveta a ajustar.", "error")
+            else:
+                unidades_actuales = asignacion.get("unidades", 0)
+                unidades_nuevas = max(unidades_objetivo, 0)
+                delta = unidades_nuevas - unidades_actuales
+                actualizada = _actualizar_unidades_gaveta(clave, delta)
+                if actualizada:
+                    flash(
+                        f"Gaveta {actualizada['gaveta']['nombre']} actualizada a {actualizada['unidades']} uds.",
+                        "success",
+                    )
+                else:
+                    flash("No se pudo ajustar la gaveta seleccionada.", "warning")
+        elif accion == "mover_gaveta":
+            pedido_id = request.form.get("pedido_id", type=int)
+            codigo_linea = request.form.get("codigo_linea", "").strip()
+            destino_nombre = request.form.get("gaveta_destino", "").strip()
+            destino = next(
+                (
+                    gaveta
+                    for gaveta in storage_locations
+                    if gaveta["nombre"].lower() == destino_nombre.lower()
+                ),
+                None,
+            )
+
+            pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+            linea = None
+            if pedido:
+                linea = next(
+                    (linea for linea in pedido["lineas"] if linea["codigo"].lower() == codigo_linea.lower()),
+                    None,
+                )
+
+            if not pedido or not linea:
+                flash("No se encontró la línea seleccionada.", "error")
+            elif not destino:
+                flash("Selecciona una gaveta de destino válida.", "warning")
+            else:
+                _asignar_gaveta_existente(pedido, linea, destino)
+                flash(
+                    f"Línea {codigo_linea} movida a la gaveta {destino['nombre']}.", "success"
+                )
         elif accion == "detener_albaran":
             active_delivery_note_id = None
             albaran_activo = None
@@ -1992,6 +2068,14 @@ def lectura_codigos():
     albaranes_disponibles = sorted(
         delivery_notes, key=lambda nota: nota["fecha"], reverse=True
     )
+    gavetas_catalogo = sorted(
+        [
+            ubicacion
+            for ubicacion in storage_locations
+            if ubicacion["tipo"].lower() == "gaveta"
+        ],
+        key=lambda ubicacion: ubicacion["nombre"].lower(),
+    )
     return render_template(
         "lectura_codigos.html",
         codigo=codigo,
@@ -2001,6 +2085,7 @@ def lectura_codigos():
         albaran_activo=albaran_activo,
         albaranes=albaranes_disponibles,
         numero_sugerido=numero_sugerido,
+        gavetas_catalogo=gavetas_catalogo,
     )
 
 
