@@ -2292,6 +2292,40 @@ def eliminar_pedido(pedido_id: int):
     return redirect(url_for("pedidos"))
 
 
+@app.route("/pedidos/<int:pedido_id>/editar", methods=["POST"])
+def editar_pedido(pedido_id: int):
+    pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido a actualizar.", "error")
+        return redirect(url_for("pedidos"))
+
+    cliente = request.form.get("cliente", "").strip()
+    estado = request.form.get("estado", "").strip()
+    notas = request.form.get("notas", "").strip()
+    fecha_str = request.form.get("fecha", "").strip()
+
+    if not cliente or not estado or not fecha_str:
+        flash("Completa cliente, estado y fecha para actualizar el pedido.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    try:
+        fecha = datetime.fromisoformat(fecha_str)
+    except ValueError:
+        flash("La fecha indicada no es válida.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    pedido.update({"cliente": cliente, "estado": estado, "fecha": fecha, "notas": notas})
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE purchase_orders SET cliente = ?, fecha = ?, estado = ?, notas = ? WHERE id = ?",
+            (cliente, fecha.isoformat(), estado, notas, pedido_id),
+        )
+
+    flash("Pedido actualizado correctamente.", "success")
+    return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+
 @app.route("/pedidos/<int:pedido_id>/asignar-gaveta", methods=["POST"])
 def asignar_gaveta_pedido(pedido_id: int):
     pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
