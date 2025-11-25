@@ -20,11 +20,16 @@
             <p class="muted" style="margin: 0.35rem 0 0;">Resumen con totales y estado actualizado del pedido.</p>
         </div>
         <div class="pill-group">
+            <span class="badge badge-neutral">{{ pedido.nombre }}</span>
             <span class="badge badge-neutral">{{ pedido.fecha.strftime('%d/%m/%Y %H:%M') }}</span>
             <span class="badge badge-info">{{ pedido.cliente }}</span>
         </div>
     </div>
     <div class="stats-grid">
+        <div class="stat-card">
+            <span>Nombre</span>
+            <strong>{{ pedido.nombre }}</strong>
+        </div>
         <div class="stat-card">
             <span>Cliente</span>
             <strong>{{ pedido.cliente }}</strong>
@@ -64,6 +69,10 @@
         <p class="muted" style="margin: 0;">Actualiza los datos generales del pedido.</p>
     </div>
     <form method="post" action="{{ url_for('editar_pedido', pedido_id=pedido.id) }}" class="form-grid" style="gap: 1rem;">
+        <div>
+            <label for="nombre">Nombre del pedido</label>
+            <input type="text" id="nombre" name="nombre" value="{{ pedido.nombre }}" required />
+        </div>
         <div>
             <label for="cliente">Cliente</label>
             <input type="text" id="cliente" name="cliente" value="{{ pedido.cliente }}" required />

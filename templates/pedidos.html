@@ -43,6 +43,10 @@
     </div>
     <form method="post" class="form-grid" style="gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items: end;">
         <div>
+            <label for="nombre">Nombre del pedido</label>
+            <input type="text" id="nombre" name="nombre" placeholder="Ej. Reposición trimestral" />
+        </div>
+        <div>
             <label for="cliente">Cliente</label>
             <input type="text" id="cliente" name="cliente" placeholder="Ej. Componentes Atlas" required />
         </div>
@@ -75,6 +79,7 @@
             <thead>
                 <tr>
                     <th>Pedido</th>
+                    <th>Nombre</th>
                     <th>Cliente</th>
                     <th>Fecha</th>
                     <th>Estado</th>
@@ -89,6 +94,7 @@
                 {% set pendientes = pedido.lineas | sum(attribute='cantidad_pendiente') %}
                 <tr class="striped {% if pendientes > 0 %}row-warning{% else %}row-positive{% endif %}">
                     <td>#{{ pedido.id }}</td>
+                    <td>{{ pedido.nombre or 'Sin nombre' }}</td>
                     <td>{{ pedido.cliente }}</td>
                     <td>{{ pedido.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
                     <td>
