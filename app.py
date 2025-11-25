@@ -1956,6 +1956,7 @@ def lectura_codigos():
                     linea_albaran = _registrar_en_albaran(albaran_activo, linea)
                     resultado = {
                         "pedido_id": pedido["id"],
+                        "pedido_nombre": pedido.get("nombre", ""),
                         "cliente": pedido["cliente"],
                         "linea": linea,
                         "completado": completado,
@@ -1983,6 +1984,7 @@ def lectura_codigos():
                             f"Registrada 1 unidad para el pedido #{pedido['id']}. Pendientes: {linea['cantidad_pendiente']}.",
                             "success",
                         )
+                    codigo = ""
 
     numero_sugerido = _generar_numero_albaran()
     lineas_pendientes = _lineas_pendientes()

@@ -51,7 +51,9 @@
     {% if resultado %}
         <div class="stat-card">
             <span>Última lectura</span>
-            <strong>Pedido #{{ resultado.pedido_id }} · {{ resultado.cliente }}</strong>
+            <strong>
+                Pedido #{{ resultado.pedido_id }} · {{ resultado.pedido_nombre }} · {{ resultado.cliente }}
+            </strong>
             <p>
                 Código {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} /
                 {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}
