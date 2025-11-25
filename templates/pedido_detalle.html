@@ -1,10 +1,26 @@
 {% extends "base.html" %}
 {% block title %}Pedido #{{ pedido.id }} · Gestión de Inventario EVO{% endblock %}
 {% block content %}
-<a class="button-link" href="{{ url_for('pedidos') }}" style="margin-bottom: 1rem; display: inline-flex; align-items: center; gap: 0.35rem;">← Volver al listado</a>
+<div class="section-header" style="margin-bottom: 1rem;">
+    <a class="button-link" href="{{ url_for('pedidos') }}" style="display: inline-flex; align-items: center; gap: 0.35rem;">← Volver al listado</a>
+    <div class="pill-group">
+        {% set estado = pedido.estado.lower() %}
+        <span class="badge {% if 'pend' in estado %}badge-warning{% elif 'recib' in estado %}badge-success{% else %}badge-neutral{% endif %}">Estado: {{ pedido.estado }}</span>
+        <span class="badge badge-info">Pedido #{{ pedido.id }}</span>
+    </div>
+</div>
 
-<section>
-    <h2 class="section-title">Pedido #{{ pedido.id }}</h2>
+<section class="stacked-panel">
+    <div class="section-header" style="align-items: flex-start;">
+        <div>
+            <h2 class="section-title" style="margin: 0;">Pedido #{{ pedido.id }}</h2>
+            <p class="muted" style="margin: 0.35rem 0 0;">Resumen con totales y estado actualizado del pedido.</p>
+        </div>
+        <div class="pill-group">
+            <span class="badge badge-neutral">{{ pedido.fecha.strftime('%d/%m/%Y %H:%M') }}</span>
+            <span class="badge badge-info">{{ pedido.cliente }}</span>
+        </div>
+    </div>
     <div class="stats-grid">
         <div class="stat-card">
             <span>Cliente</span>
@@ -32,31 +48,39 @@
         </div>
     </div>
     {% if pedido.notas %}
-    <p><strong>Notas:</strong> {{ pedido.notas }}</p>
+    <div class="stacked-panel" style="padding: 1.25rem; box-shadow: none; border: 1px dashed #dcdde1;">
+        <h4 class="panel-title">Notas del pedido</h4>
+        <p class="panel-content" style="margin: 0;">{{ pedido.notas }}</p>
+    </div>
     {% endif %}
 </section>
 
 <section>
-    <h3 class="section-title">Líneas del pedido</h3>
+    <div class="section-header" style="margin-bottom: 0.5rem;">
+        <h3 class="section-title" style="margin: 0;">Líneas del pedido</h3>
+        <p class="muted" style="margin: 0;">Gestiona asignaciones y confirma la recepción línea a línea.</p>
+    </div>
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
-                    <th>PEDIDO</th>
-                    <th>CLIENTE</th>
-                    <th>CODIGO</th>
-                    <th>DESCRIPCIÓN</th>
-                    <th>CANTIDAD PEDIDA</th>
-                    <th>CANTIDAD RECIBIDA</th>
-                    <th>CANTIDAD PENDIENTE</th>
-                    <th>GAVETA ASIGNADA</th>
-                    <th>FECHA</th>
-                    <th>ACCIONES</th>
+                    <th>Pedido</th>
+                    <th>Cliente</th>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th>Pedida</th>
+                    <th>Recibida</th>
+                    <th>Pendiente</th>
+                    <th>Gaveta asignada</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for linea in pedido.lineas %}
-                <tr>
+                {% set clave = (pedido.id, linea.codigo.lower()) %}
+                {% set asignacion = asignaciones.get(clave) %}
+                <tr class="striped {% if linea.cantidad_pendiente > 0 %}row-warning{% else %}row-positive{% endif %}">
                     <td>#{{ pedido.id }}</td>
                     <td>{{ pedido.cliente }}</td>
                     <td>{{ linea.codigo }}</td>
@@ -65,8 +89,6 @@
                     <td>{{ linea.cantidad_recibida }}</td>
                     <td>{{ linea.cantidad_pendiente }}</td>
                     <td>
-                        {% set clave = (pedido.id, linea.codigo.lower()) %}
-                        {% set asignacion = asignaciones.get(clave) %}
                         {% if asignacion %}
                             <div style="display: flex; flex-direction: column; gap: 0.15rem;">
                                 <strong>{{ asignacion.gaveta.nombre }}</strong>
@@ -79,7 +101,7 @@
                     <td>{{ pedido.fecha.strftime('%d/%m/%Y') }}</td>
                     <td>
                         {% if gavetas_existentes %}
-                            <form method="post" action="{{ url_for('asignar_gaveta_pedido', pedido_id=pedido.id) }}" style="display: flex; flex-direction: column; gap: 0.35rem;">
+                            <form method="post" action="{{ url_for('asignar_gaveta_pedido', pedido_id=pedido.id) }}" style="display: grid; gap: 0.25rem; align-items: center;">
                                 <input type="hidden" name="codigo" value="{{ linea.codigo }}" />
                                 <label for="gaveta_{{ linea.codigo }}" style="font-size: 0.9rem; font-weight: 600;">Asignar gaveta</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
