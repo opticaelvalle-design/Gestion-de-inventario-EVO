@@ -79,9 +79,9 @@
                     <td>{{ pedido.fecha.strftime('%d/%m/%Y') }}</td>
                     <td>
                         {% if gavetas_existentes %}
-                            <form method="post" action="{{ url_for('asignar_gaveta_pedido', pedido_id=pedido.id) }}" style="display: flex; flex-direction: column; gap: 0.35rem;">
+                            <form method="post" action="{{ url_for('asignar_gaveta_pedido', pedido_id=pedido.id) }}" class="action-buttons">
                                 <input type="hidden" name="codigo" value="{{ linea.codigo }}" />
-                                <label for="gaveta_{{ linea.codigo }}" style="font-size: 0.9rem; font-weight: 600;">Asignar gaveta</label>
+                                <label for="gaveta_{{ linea.codigo }}" style="font-size: 0.9rem;">Asignar gaveta</label>
                                 <select name="gaveta_nombre" id="gaveta_{{ linea.codigo }}">
                                     <option value="" disabled {% if not asignacion %}selected{% endif %}>Selecciona gaveta</option>
                                     {% for gaveta in gavetas_existentes %}
