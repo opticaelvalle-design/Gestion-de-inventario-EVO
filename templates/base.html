@@ -168,6 +168,40 @@
             justify-self: start;
             padding: 0.5rem 0.85rem;
         }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+        .line-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .line-actions__form {
+            display: flex;
+            gap: 0.35rem;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            padding: 0.4rem 0.5rem;
+            background: #f5f6fa;
+            border-radius: 8px;
+        }
+        .line-actions__form input[type="text"] {
+            min-width: 140px;
+        }
+        .line-actions__form input[type="number"] {
+            width: 120px;
+        }
+        .line-actions__form .button-link {
+            padding: 0.5rem 0.85rem;
+        }
         table {
             width: 100%;
             border-collapse: collapse;

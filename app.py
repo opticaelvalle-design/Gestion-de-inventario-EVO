@@ -403,6 +403,17 @@ def _insertar_linea_pedido(pedido_id: int, linea: dict):
         )
 
 
+def _eliminar_linea_pedido(pedido_id: int, codigo: str):
+    with get_connection() as conn:
+        conn.execute(
+            """
+            DELETE FROM purchase_order_lines
+            WHERE pedido_id = ? AND lower(codigo) = ?
+            """,
+            (pedido_id, codigo.lower()),
+        )
+
+
 def get_connection():
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
@@ -2292,6 +2303,147 @@ def eliminar_pedido(pedido_id: int):
     return redirect(url_for("pedidos"))
 
 
+@app.route("/pedidos/<int:pedido_id>/actualizar", methods=["POST"])
+def actualizar_pedido(pedido_id: int):
+    pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido a actualizar.", "error")
+        return redirect(url_for("pedidos"))
+
+    nuevo_cliente = request.form.get("cliente", "").strip()
+    if not nuevo_cliente:
+        flash("El nombre del pedido no puede estar vacío.", "warning")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    pedido["cliente"] = nuevo_cliente
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE purchase_orders SET cliente = ? WHERE id = ?",
+            (nuevo_cliente, pedido_id),
+        )
+
+    flash("Nombre del pedido actualizado correctamente.", "success")
+    return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+
+@app.route("/pedidos/<int:pedido_id>/lineas/agregar", methods=["POST"])
+def agregar_linea_pedido(pedido_id: int):
+    pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido solicitado.", "error")
+        return redirect(url_for("pedidos"))
+
+    codigo = request.form.get("codigo", "").strip()
+    descripcion = request.form.get("descripcion", "").strip()
+    cantidad_pedida = request.form.get("cantidad_pedida", type=int)
+    cantidad_recibida = request.form.get("cantidad_recibida", type=int, default=0)
+
+    if not codigo or not descripcion or cantidad_pedida is None or cantidad_pedida <= 0:
+        flash("Completa el código, la descripción y una cantidad pedida válida.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    if cantidad_recibida is None or cantidad_recibida < 0 or cantidad_recibida > cantidad_pedida:
+        flash("La cantidad recibida debe estar entre 0 y la cantidad pedida.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    if any(linea["codigo"].lower() == codigo.lower() for linea in pedido["lineas"]):
+        flash("Ya existe una línea con ese código en el pedido.", "warning")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    nueva_linea = {
+        "codigo": codigo,
+        "descripcion": descripcion,
+        "cantidad_pedida": cantidad_pedida,
+        "cantidad_recibida": cantidad_recibida,
+        "cantidad_pendiente": cantidad_pedida - cantidad_recibida,
+    }
+
+    pedido["lineas"].append(nueva_linea)
+    _insertar_linea_pedido(pedido_id, nueva_linea)
+    flash("Línea añadida al pedido.", "success")
+    return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+
+@app.route("/pedidos/<int:pedido_id>/lineas/<codigo>/editar", methods=["POST"])
+def editar_linea_pedido(pedido_id: int, codigo: str):
+    pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido solicitado.", "error")
+        return redirect(url_for("pedidos"))
+
+    linea = next(
+        (linea for linea in pedido["lineas"] if linea["codigo"].lower() == codigo.lower()),
+        None,
+    )
+    if not linea:
+        flash("No se encontró la línea indicada en el pedido.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    descripcion = request.form.get("descripcion", "").strip()
+    cantidad_pedida = request.form.get("cantidad_pedida", type=int)
+    cantidad_recibida = request.form.get("cantidad_recibida", type=int)
+
+    if not descripcion or cantidad_pedida is None or cantidad_recibida is None:
+        flash("Completa la descripción y las cantidades de la línea.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    if cantidad_pedida <= 0:
+        flash("La cantidad pedida debe ser mayor que cero.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    if cantidad_recibida < 0 or cantidad_recibida > cantidad_pedida:
+        flash("La cantidad recibida debe estar entre 0 y la cantidad pedida.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    linea.update(
+        {
+            "descripcion": descripcion,
+            "cantidad_pedida": cantidad_pedida,
+            "cantidad_recibida": cantidad_recibida,
+            "cantidad_pendiente": cantidad_pedida - cantidad_recibida,
+        }
+    )
+    _persistir_linea_pedido(pedido_id, linea)
+    flash("Línea actualizada correctamente.", "success")
+    return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+
+@app.route("/pedidos/<int:pedido_id>/lineas/<codigo>/eliminar", methods=["POST"])
+def eliminar_linea_pedido(pedido_id: int, codigo: str):
+    global purchase_orders, gaveta_asignaciones
+
+    pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido solicitado.", "error")
+        return redirect(url_for("pedidos"))
+
+    lineas_filtradas = [
+        linea for linea in pedido["lineas"] if linea["codigo"].lower() != codigo.lower()
+    ]
+
+    if len(lineas_filtradas) == len(pedido["lineas"]):
+        flash("No se encontró la línea indicada en el pedido.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    pedido["lineas"] = lineas_filtradas
+    gaveta_asignaciones = {
+        clave: asignacion
+        for clave, asignacion in gaveta_asignaciones.items()
+        if not (asignacion["pedido_id"] == pedido_id and asignacion["codigo"].lower() == codigo.lower())
+    }
+
+    _eliminar_linea_pedido(pedido_id, codigo)
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM gaveta_asignaciones WHERE pedido_id = ? AND lower(codigo) = ?",
+            (pedido_id, codigo.lower()),
+        )
+
+    flash("Línea eliminada del pedido.", "success")
+    return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+
 @app.route("/pedidos/<int:pedido_id>/asignar-gaveta", methods=["POST"])
 def asignar_gaveta_pedido(pedido_id: int):
     pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
@@ -2346,23 +2498,12 @@ def pedido_detalle(pedido_id: int):
     total_recibido = sum(linea["cantidad_recibida"] for linea in pedido["lineas"])
     total_pendiente = sum(linea["cantidad_pendiente"] for linea in pedido["lineas"])
 
-    asignaciones = {
-        clave: asignacion
-        for clave, asignacion in gaveta_asignaciones.items()
-        if asignacion["pedido_id"] == pedido_id
-    }
-    gavetas_existentes = [
-        ubicacion for ubicacion in storage_locations if ubicacion["tipo"].lower() == "gaveta"
-    ]
-
     return render_template(
         "pedido_detalle.html",
         pedido=pedido,
         total_solicitado=total_solicitado,
         total_recibido=total_recibido,
         total_pendiente=total_pendiente,
-        asignaciones=asignaciones,
-        gavetas_existentes=gavetas_existentes,
     )
 
 

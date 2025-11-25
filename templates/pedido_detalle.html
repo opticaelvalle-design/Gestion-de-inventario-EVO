@@ -36,6 +36,48 @@
     {% endif %}
 </section>
 
+<section class="card" style="margin-top: 1.5rem; gap: 0.75rem;">
+    <div>
+        <h3 style="margin: 0;">Actualizar nombre del pedido</h3>
+        <p style="margin: 0; color: #57606f;">Cambia el identificador visible del pedido en pantalla.</p>
+    </div>
+    <form method="post" action="{{ url_for('actualizar_pedido', pedido_id=pedido.id) }}" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end; margin-top: 0.5rem;">
+        <div style="flex: 1 1 260px; min-width: 240px;">
+            <label for="cliente">Nombre del pedido</label>
+            <input type="text" id="cliente" name="cliente" value="{{ pedido.cliente }}" required />
+        </div>
+        <button type="submit">Guardar cambios</button>
+    </form>
+</section>
+
+<section class="card" style="margin-top: 1.5rem; gap: 1rem;">
+    <div>
+        <h3 style="margin: 0;">Añadir nueva línea</h3>
+        <p style="margin: 0; color: #57606f;">Registra productos adicionales directamente en este pedido.</p>
+    </div>
+    <form method="post" action="{{ url_for('agregar_linea_pedido', pedido_id=pedido.id) }}" class="form-grid" style="gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+        <div>
+            <label for="codigo">Código</label>
+            <input type="text" id="codigo" name="codigo" placeholder="Ej. ABC123" required />
+        </div>
+        <div>
+            <label for="descripcion">Descripción</label>
+            <input type="text" id="descripcion" name="descripcion" placeholder="Producto" required />
+        </div>
+        <div>
+            <label for="cantidad_pedida">Cantidad pedida</label>
+            <input type="number" id="cantidad_pedida" name="cantidad_pedida" min="1" placeholder="Ej. 50" required />
+        </div>
+        <div>
+            <label for="cantidad_recibida">Cantidad recibida (opcional)</label>
+            <input type="number" id="cantidad_recibida" name="cantidad_recibida" min="0" value="0" />
+        </div>
+        <div style="align-self: flex-end;">
+            <button type="submit">Añadir línea</button>
+        </div>
+    </form>
+</section>
+
 <section>
     <h3 class="section-title">Líneas del pedido</h3>
     <div class="table-wrapper">
@@ -49,7 +91,6 @@
                     <th>CANTIDAD PEDIDA</th>
                     <th>CANTIDAD RECIBIDA</th>
                     <th>CANTIDAD PENDIENTE</th>
-                    <th>GAVETA ASIGNADA</th>
                     <th>FECHA</th>
                     <th>ACCIONES</th>
                 </tr>
@@ -64,35 +105,23 @@
                     <td>{{ linea.cantidad_pedida }}</td>
                     <td>{{ linea.cantidad_recibida }}</td>
                     <td>{{ linea.cantidad_pendiente }}</td>
-                    <td>
-                        {% set clave = (pedido.id, linea.codigo.lower()) %}
-                        {% set asignacion = asignaciones.get(clave) %}
-                        {% if asignacion %}
-                            <div style="display: flex; flex-direction: column; gap: 0.15rem;">
-                                <strong>{{ asignacion.gaveta.nombre }}</strong>
-                                <small>Unidades registradas: {{ asignacion.unidades }}</small>
-                            </div>
-                        {% else %}
-                            <em>Sin asignar</em>
-                        {% endif %}
-                    </td>
                     <td>{{ pedido.fecha.strftime('%d/%m/%Y') }}</td>
                     <td>
-                        {% if gavetas_existentes %}
-                            <form method="post" action="{{ url_for('asignar_gaveta_pedido', pedido_id=pedido.id) }}" style="display: flex; flex-direction: column; gap: 0.35rem;">
+                        <div class="line-actions">
+                            <form method="post" action="{{ url_for('editar_linea_pedido', pedido_id=pedido.id, codigo=linea.codigo) }}" class="line-actions__form">
                                 <input type="hidden" name="codigo" value="{{ linea.codigo }}" />
-                                <label for="gaveta_{{ linea.codigo }}" style="font-size: 0.9rem; font-weight: 600;">Asignar gaveta</label>
-                                <select name="gaveta_nombre" id="gaveta_{{ linea.codigo }}">
-                                    <option value="" disabled {% if not asignacion %}selected{% endif %}>Selecciona gaveta</option>
-                                    {% for gaveta in gavetas_existentes %}
-                                        <option value="{{ gaveta.nombre }}" {% if asignacion and gaveta.nombre == asignacion.gaveta.nombre %}selected{% endif %}>{{ gaveta.nombre }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button type="submit" style="padding: 0.45rem 0.65rem;">Guardar</button>
+                                <label class="sr-only" for="descripcion_{{ linea.codigo }}">Descripción</label>
+                                <input type="text" id="descripcion_{{ linea.codigo }}" name="descripcion" value="{{ linea.descripcion }}" required />
+                                <label class="sr-only" for="cantidad_pedida_{{ linea.codigo }}">Cantidad pedida</label>
+                                <input type="number" id="cantidad_pedida_{{ linea.codigo }}" name="cantidad_pedida" min="1" value="{{ linea.cantidad_pedida }}" required />
+                                <label class="sr-only" for="cantidad_recibida_{{ linea.codigo }}">Cantidad recibida</label>
+                                <input type="number" id="cantidad_recibida_{{ linea.codigo }}" name="cantidad_recibida" min="0" max="{{ linea.cantidad_pedida }}" value="{{ linea.cantidad_recibida }}" required />
+                                <button type="submit" class="button-link">Editar</button>
                             </form>
-                        {% else %}
-                            <small>No hay gavetas creadas.</small>
-                        {% endif %}
+                            <form method="post" action="{{ url_for('eliminar_linea_pedido', pedido_id=pedido.id, codigo=linea.codigo) }}" onsubmit="return confirm('¿Seguro que quieres eliminar la línea {{ linea.codigo }}?');">
+                                <button type="submit" class="button-link" style="background-color: #b3261e; color: white;">Eliminar</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
