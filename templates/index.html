@@ -1,48 +1,70 @@
 {% extends "base.html" %}
 {% block title %}Inicio · Gestión de Inventario EVO{% endblock %}
 {% block content %}
+<div class="content-header">
+    <div>
+        <h2>Acciones principales</h2>
+        <p>Todo lo necesario para altas, control de stock y preparación de pedidos desde un único panel.</p>
+    </div>
+    <div class="meta">
+        <strong>Experiencia cohesionada</strong>
+        <p>Accesos jerarquizados por tipo de operación y un estilo consistente en todas las vistas.</p>
+    </div>
+</div>
+
 <section class="menu-grid">
     <a class="card" href="{{ url_for('crear_gavetas') }}">
+        <span class="tag">Ubicaciones</span>
         <h2>Crear gavetas, baldas y cajones</h2>
         <p>Registra nuevas ubicaciones físicas en el almacén para mantener organizado el inventario.</p>
     </a>
     <a class="card" href="{{ url_for('lectura_codigos') }}">
+        <span class="tag">Operación rápida</span>
         <h2>Lectura de códigos</h2>
         <p>Escanea cada unidad y descuenta automáticamente el pendiente del pedido correspondiente.</p>
     </a>
     <a class="card" href="{{ url_for('subir_excel') }}">
+        <span class="tag">Automatización</span>
         <h2>Subir Excel</h2>
         <p>Importa movimientos o cargas masivas desde tus hojas de cálculo en formato Excel.</p>
     </a>
     <a class="card" href="{{ url_for('exportar_informes') }}">
+        <span class="tag">Seguimiento</span>
         <h2>Exportar informes</h2>
         <p>Genera informes en formato XLSX con el estado actual del stock y compártelos con tu equipo.</p>
     </a>
     <a class="card" href="{{ url_for('buscar_articulos') }}">
+        <span class="tag">Búsqueda</span>
         <h2>Buscar artículos</h2>
         <p>Encuentra cualquier referencia por nombre o código y revisa su disponibilidad en segundos.</p>
     </a>
     <a class="card" href="{{ url_for('stock_opticas') }}">
+        <span class="tag">Sucursales</span>
         <h2>Stock ópticas</h2>
         <p>Control dedicado para las sucursales Blanca, Abarán, Bajo y Murcia con movimientos independientes.</p>
     </a>
     <a class="card" href="{{ url_for('mostrar_stock') }}">
+        <span class="tag">Consulta</span>
         <h2>Mostrar stock</h2>
         <p>Consulta un resumen detallado de todas las existencias y sus ubicaciones actuales.</p>
     </a>
     <a class="card" href="{{ url_for('panel_control') }}">
+        <span class="tag">Visión general</span>
         <h2>Panel de control</h2>
         <p>Supervisa indicadores clave y mantente al tanto de movimientos recientes en tus almacenes.</p>
     </a>
     <a class="card" href="{{ url_for('albaranes') }}">
+        <span class="tag">Entradas</span>
         <h2>Albaranes de entrada</h2>
         <p>Registra recepciones, consulta importes y accede al detalle de cada documento de entrada.</p>
     </a>
     <a class="card" href="{{ url_for('pedidos') }}">
+        <span class="tag">Preparación</span>
         <h2>Pedidos</h2>
         <p>Revisa qué pedidos siguen abiertos, sus cantidades pendientes y accede al detalle de cada referencia.</p>
     </a>
     <a class="card" href="{{ url_for('static', filename='inventario_app.zip') }}" download>
+        <span class="tag">Descarga</span>
         <h2>Descargar ZIP</h2>
         <p>Obtén todo el código de la aplicación en un único archivo comprimido listo para compartir o archivar.</p>
     </a>

@@ -6,7 +6,10 @@
     <title>{% block title %}Gestión de Inventario{% endblock %}</title>
     <style>
         :root {
-            color-scheme: light dark;
+            color-scheme: light;
+        }
+        * {
+            box-sizing: border-box;
         }
         body {
             margin: 0;
@@ -35,6 +38,10 @@
             justify-content: center;
             gap: 0.5rem;
             padding: 0.75rem 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
         nav a {
             color: #f5f6fa;
@@ -44,11 +51,13 @@
             transition: background-color 0.2s ease, transform 0.2s ease;
             font-weight: 600;
             font-size: 0.95rem;
+            border: 1px solid transparent;
         }
         nav a:hover,
         nav a:focus {
             background-color: #718093;
             transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.35);
         }
         nav a.active {
             background-color: #e1b12c;
@@ -58,6 +67,30 @@
             max-width: 1100px;
             margin: 2rem auto;
             padding: 0 1.5rem 3rem;
+        }
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1.5rem;
+            margin-bottom: 1.75rem;
+        }
+        .content-header h2 {
+            margin: 0;
+            color: #273c75;
+            font-size: 1.75rem;
+        }
+        .content-header p {
+            margin: 0.35rem 0 0;
+            color: #57606f;
+        }
+        .content-header .meta {
+            background: #fff;
+            padding: 0.85rem 1.1rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            color: #2f3640;
+            min-width: 220px;
         }
         .menu-grid {
             display: grid;
@@ -85,6 +118,16 @@
             margin: 0;
             font-size: 1.25rem;
             color: #273c75;
+        }
+        .card .tag {
+            display: inline-block;
+            padding: 0.25rem 0.7rem;
+            background: #e1ecf4;
+            color: #273c75;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
         }
         .card p {
             margin: 0;
@@ -217,6 +260,16 @@
             font-size: 1.5rem;
             color: #273c75;
         }
+        .surface {
+            background-color: #fff;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        }
+        .stack {
+            display: grid;
+            gap: 1rem;
+        }
         .empty-state {
             background-color: #fff;
             border-radius: 12px;
@@ -232,10 +285,15 @@
             nav {
                 flex-direction: column;
                 align-items: center;
+                position: static;
+                box-shadow: none;
             }
             nav a {
                 width: 100%;
                 text-align: center;
+            }
+            .content-header {
+                flex-direction: column;
             }
         }
     </style>
