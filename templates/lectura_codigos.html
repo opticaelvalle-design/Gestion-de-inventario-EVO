@@ -1,182 +1,319 @@
 {% extends "base.html" %}
 {% block title %}Lectura de códigos · Gestión de Inventario EVO{% endblock %}
+{% block extra_styles %}
+<style>
+    .grid-responsive {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
+        align-items: start;
+    }
+
+    .inline-grid {
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+    }
+
+    .table-actions {
+        display: grid;
+        gap: 0.35rem;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.75rem;
+        background: #eef2ff;
+        border-radius: 999px;
+        font-weight: 700;
+        color: #1f2a3d;
+        border: 1px solid #dfe3f5;
+    }
+
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1rem;
+    }
+
+    .modal {
+        background: #fff;
+        border-radius: 14px;
+        padding: 1.1rem 1.25rem;
+        width: min(520px, 100%);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.16);
+        display: grid;
+        gap: 0.75rem;
+    }
+</style>
+{% endblock %}
 {% block content %}
-<section class="card" style="gap: 1.25rem;">
+<div class="content-header">
     <div>
         <h2>Lectura de códigos</h2>
-        <p>Escanea o introduce manualmente un código para registrar la recepción unidad a unidad.</p>
+        <p class="muted">Escanea o introduce manualmente un código para registrar la recepción unidad a unidad.</p>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.75rem; align-items: end;">
-        <div class="stat-card" style="gap: 0.35rem;">
+    <div class="meta">
+        <strong>Modo operativo</strong>
+        <p>{{ lineas_pendientes|length }} líneas pendientes · {{ gavetas_activas|length }} gavetas activas</p>
+    </div>
+</div>
+
+<section class="stacked-panel">
+    <div class="grid-responsive">
+        <div class="stat-card">
             <span>Albarán en curso</span>
             {% if albaran_activo %}
                 <strong>{{ albaran_activo.numero }}</strong>
-                <small style="color: #353b48;">{{ albaran_activo.proveedor }} · {{ albaran_activo.fabrica }}</small>
+                <span class="muted small">{{ albaran_activo.proveedor }} · {{ albaran_activo.fabrica }}</span>
+                <div class="pill">En uso</div>
             {% else %}
-                <strong>Ninguno</strong>
-                <small style="color: #c23616; font-weight: 600;">Selecciona o crea un albarán antes de leer.</small>
+                <strong>Ninguno seleccionado</strong>
+                <span class="muted small">Activa un albarán para registrar lecturas.</span>
             {% endif %}
         </div>
-        <button type="button" id="abrir-modal-albaran" style="height: 100%;">Crear albarán nuevo</button>
-        <form method="post" style="gap: 0.35rem;">
-            <label for="albaran_id">Elegir albarán existente</label>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <select name="albaran_id" id="albaran_id" style="flex: 1; padding: 0.55rem 0.75rem;">
-                    <option value="" disabled selected>Selecciona un albarán</option>
-                    {% for albaran in albaranes %}
-                        <option value="{{ albaran.id }}">{{ albaran.numero }} · {{ albaran.proveedor }}</option>
-                    {% endfor %}
-                </select>
-                <input type="hidden" name="accion" value="seleccionar_albaran" />
-                <button type="submit">Usar</button>
+        <div class="surface">
+            <div class="section-header">
+                <div>
+                    <h3 class="section-title" style="margin: 0;">Crear albarán</h3>
+                    <p class="muted" style="margin: 0;">Genera un nuevo albarán sin salir de la vista.</p>
+                </div>
+                <button type="button" id="abrir-modal-albaran">Nuevo</button>
             </div>
-        </form>
-        {% if albaran_activo %}
-            <form method="post" style="gap: 0.35rem;">
-                <input type="hidden" name="accion" value="detener_albaran" />
-                <button type="submit" style="background-color: #f6b93b; color: #2d3436; border-color: #f6b93b;">Dejar de leer en el albarán</button>
+            <form method="post" class="inline-grid">
+                <div>
+                    <label for="albaran_id">Elegir albarán existente</label>
+                    <select name="albaran_id" id="albaran_id">
+                        <option value="" disabled selected>Selecciona un albarán</option>
+                        {% for albaran in albaranes %}
+                            <option value="{{ albaran.id }}">{{ albaran.numero }} · {{ albaran.proveedor }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="hidden" name="accion" value="seleccionar_albaran" />
+                </div>
+                <button type="submit">Usar</button>
             </form>
-        {% endif %}
-    </div>
-    <form method="post" style="display: flex; flex-direction: column; gap: 0.5rem;">
-        <label for="codigo">Código de barras</label>
-        <input type="text" name="codigo" id="codigo" value="{{ codigo }}" placeholder="Ej. ABC123" autofocus autocomplete="off" />
-        <input type="hidden" name="accion" value="leer" />
-        <button type="submit">Registrar recepción</button>
-    </form>
-    <form method="post" style="align-self: flex-start;">
-        <input type="hidden" name="accion" value="deshacer" />
-        <button type="submit" style="background-color: #c23616; color: #fff; border-color: #c23616;">Deshacer última lectura</button>
-    </form>
-    {% if resultado %}
-        <div class="stat-card">
-            <span>Última lectura</span>
-            <strong>
-                Pedido #{{ resultado.pedido_id }} · {{ resultado.pedido_nombre }} · {{ resultado.cliente }}
-            </strong>
-            <p>
-                Código {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} /
-                {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}
-            </p>
-            {% if resultado.albaran %}
-                <p>
-                    Albarán: <strong>{{ resultado.albaran }}</strong>
-                    {% if resultado.linea_albaran %}
-                        · Unidades en albarán: {{ resultado.linea_albaran.cantidad }}
-                    {% endif %}
-                </p>
-            {% endif %}
-            {% if resultado.gaveta %}
-                <p>
-                    Ubicación asignada:
-                    <strong>{{ resultado.gaveta }}</strong>
-                    · Unidades almacenadas en la gaveta: {{ resultado.unidades_gaveta }}
-                </p>
-                {% if resultado.gaveta_creada %}
-                    <p style="color: #0097e6; font-weight: 600;">
-                        Se creó una nueva gaveta para este pedido y código.
-                    </p>
-                {% endif %}
-            {% endif %}
-            {% if resultado.deshacer %}
-                <p style="color: #c23616; font-weight: 600;">Se revirtió la última lectura.</p>
-            {% elif resultado.completado %}
-                <p style="color: #009432; font-weight: 600;">¡Línea completada!</p>
+            {% if albaran_activo %}
+                <form method="post" class="inline-grid" style="grid-template-columns: 1fr auto;">
+                    <input type="hidden" name="accion" value="detener_albaran" />
+                    <div>
+                        <label>Control rápido</label>
+                        <p class="muted" style="margin: 0;">Detén la lectura en el albarán actual.</p>
+                    </div>
+                    <button type="submit" class="btn-secondary">Detener lectura</button>
+                </form>
             {% endif %}
         </div>
-    {% endif %}
+        <div class="surface">
+            <form method="post" class="stacked-panel" style="box-shadow: none; padding: 0; gap: 0.65rem;">
+                <label for="codigo">Código de barras</label>
+                <input type="text" name="codigo" id="codigo" value="{{ codigo }}" placeholder="Ej. ABC123" autofocus autocomplete="off" />
+                <input type="hidden" name="accion" value="leer" />
+                <div class="toolbar">
+                    <button type="submit">Registrar recepción</button>
+                </div>
+            </form>
+            <form method="post" class="inline-grid" style="margin-top: 0.5rem; grid-template-columns: 1fr auto;">
+                <input type="hidden" name="accion" value="deshacer" />
+                <div>
+                    <label>Deshacer</label>
+                    <p class="muted" style="margin: 0;">Revierte la última lectura registrada.</p>
+                </div>
+                <button type="submit" class="btn-secondary">Deshacer última lectura</button>
+            </form>
+            {% if resultado %}
+                <div class="stat-card">
+                    <span>Última lectura</span>
+                    <strong>
+                        Pedido #{{ resultado.pedido_id }} · {{ resultado.pedido_nombre }} · {{ resultado.cliente }}
+                    </strong>
+                    <p>
+                        Código {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} /
+                        {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}
+                    </p>
+                    {% if resultado.albaran %}
+                        <p>
+                            Albarán: <strong>{{ resultado.albaran }}</strong>
+                            {% if resultado.linea_albaran %}
+                                · Unidades en albarán: {{ resultado.linea_albaran.cantidad }}
+                            {% endif %}
+                        </p>
+                    {% endif %}
+                    {% if resultado.gaveta %}
+                        <p>
+                            Ubicación asignada:
+                            <strong>{{ resultado.gaveta }}</strong>
+                            · Unidades en gaveta: {{ resultado.unidades_gaveta }}
+                        </p>
+                        {% if resultado.gaveta_creada %}
+                            <p class="muted">Se creó una nueva gaveta para este pedido y código.</p>
+                        {% endif %}
+                    {% endif %}
+                    {% if resultado.deshacer %}
+                        <p class="muted">Se revirtió la última lectura.</p>
+                    {% elif resultado.completado %}
+                        <p class="muted">¡Línea completada!</p>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
 </section>
 
-<h2 class="section-title">Líneas con unidades pendientes</h2>
+<h2 class="section-title" style="margin-top: 2rem;">Líneas con unidades pendientes</h2>
 {% if lineas_pendientes %}
-    <div style="overflow-x: auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Pedido</th>
-                    <th>Cliente</th>
-                    <th>Código</th>
-                    <th>Descripción</th>
-                    <th>Pedidas</th>
-                    <th>Recibidas</th>
-                    <th>Pendientes</th>
-                    <th>Fecha</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for linea in lineas_pendientes %}
-                    <tr>
-                        <td><a href="{{ url_for('pedido_detalle', pedido_id=linea.pedido_id) }}" class="button-link" style="padding: 0.35rem 0.65rem; font-size: 0.85rem;">#{{ linea.pedido_id }}</a></td>
-                        <td>{{ linea.cliente }}</td>
-                        <td>{{ linea.codigo }}</td>
-                        <td>{{ linea.descripcion }}</td>
-                        <td>{{ linea.cantidad_pedida }}</td>
-                        <td>{{ linea.cantidad_recibida }}</td>
-                        <td>{{ linea.cantidad_pendiente }}</td>
-                        <td>{{ linea.fecha.strftime('%d/%m/%Y') }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="toolbar">
+    <div class="filters">
+        <input type="text" id="filtro-cliente-pendientes" placeholder="Filtrar por cliente" aria-label="Filtrar por cliente" />
+        <input type="text" id="filtro-codigo-pendientes" placeholder="Filtrar por código" aria-label="Filtrar por código" />
     </div>
+    <div class="filters">
+        <button type="button" class="btn-secondary" onclick="exportTable('tabla-pendientes','pendientes','csv')">Exportar CSV</button>
+        <button type="button" class="btn-secondary" onclick="exportTable('tabla-pendientes','pendientes','xls')">Exportar XLS</button>
+    </div>
+</div>
+<div class="table-wrapper" role="region" aria-label="Tabla de pendientes">
+    <table id="tabla-pendientes">
+        <thead>
+            <tr>
+                <th data-sort="pedido">Pedido</th>
+                <th data-sort="cliente">Cliente</th>
+                <th data-sort="codigo">Código</th>
+                <th data-sort="descripcion">Descripción</th>
+                <th data-sort="pedidas">Pedidas</th>
+                <th data-sort="recibidas">Recibidas</th>
+                <th data-sort="pendientes">Pendientes</th>
+                <th data-sort="fecha">Fecha</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for linea in lineas_pendientes %}
+                <tr class="striped" data-cliente="{{ linea.cliente|lower }}" data-codigo="{{ linea.codigo|lower }}" data-fecha="{{ linea.fecha.isoformat() }}">
+                    <td><a class="button-link btn-secondary" href="{{ url_for('pedido_detalle', pedido_id=linea.pedido_id) }}">#{{ linea.pedido_id }}</a></td>
+                    <td>{{ linea.cliente }}</td>
+                    <td>{{ linea.codigo }}</td>
+                    <td>{{ linea.descripcion }}</td>
+                    <td>{{ linea.cantidad_pedida }}</td>
+                    <td>{{ linea.cantidad_recibida }}</td>
+                    <td>{{ linea.cantidad_pendiente }}</td>
+                    <td>{{ linea.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>
+                        <form method="post" class="inline-actions">
+                            <input type="hidden" name="accion" value="ajustar_linea" />
+                            <input type="hidden" name="pedido_id" value="{{ linea.pedido_id }}" />
+                            <input type="hidden" name="codigo" value="{{ linea.codigo }}" />
+                            <div class="table-actions">
+                                <button type="submit" name="delta" value="1">+1</button>
+                                <button type="submit" name="delta" value="-1" class="btn-secondary">-1</button>
+                            </div>
+                            <label class="small" for="recibidas-{{ loop.index }}">Recibidas</label>
+                            <input type="number" id="recibidas-{{ loop.index }}" name="nueva_recibida" min="0" max="{{ linea.cantidad_pedida }}" value="{{ linea.cantidad_recibida }}" />
+                            <label class="small" for="gaveta-{{ loop.index }}">Mover a otra gaveta</label>
+                            <input type="text" id="gaveta-{{ loop.index }}" name="nueva_gaveta" placeholder="Nombre de gaveta" />
+                            <button type="submit" class="btn-secondary">Guardar cambios</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="pagination" id="paginacion-pendientes" aria-label="Paginación pendientes"></div>
 {% else %}
     <div class="empty-state">
         <p>No hay unidades pendientes en ningún pedido.</p>
     </div>
 {% endif %}
 
-<h2 class="section-title">Gavetas activas</h2>
+<h2 class="section-title" style="margin-top: 2rem;">Gavetas activas</h2>
 {% if gavetas_activas %}
-    <div style="overflow-x: auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Gaveta</th>
-                    <th>Pedido</th>
-                    <th>Cliente</th>
-                    <th>Código</th>
-                    <th>Descripción</th>
-                    <th>Unidades almacenadas</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for gaveta in gavetas_activas %}
-                    <tr>
-                        <td>{{ gaveta.nombre }}</td>
-                        <td>#{{ gaveta.pedido_id }}</td>
-                        <td>{{ gaveta.cliente }}</td>
-                        <td>{{ gaveta.codigo }}</td>
-                        <td>{{ gaveta.descripcion }}</td>
-                        <td>{{ gaveta.unidades }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="toolbar">
+    <div class="filters">
+        <input type="text" id="filtro-cliente-gavetas" placeholder="Filtrar por cliente" aria-label="Filtrar por cliente" />
+        <input type="text" id="filtro-codigo-gavetas" placeholder="Filtrar por código" aria-label="Filtrar por código" />
     </div>
+    <div class="filters">
+        <button type="button" class="btn-secondary" onclick="exportTable('tabla-gavetas','gavetas','csv')">Exportar CSV</button>
+        <button type="button" class="btn-secondary" onclick="exportTable('tabla-gavetas','gavetas','xls')">Exportar XLS</button>
+    </div>
+</div>
+<div class="table-wrapper" role="region" aria-label="Tabla de gavetas activas">
+    <table id="tabla-gavetas">
+        <thead>
+            <tr>
+                <th data-sort="gaveta">Gaveta</th>
+                <th data-sort="pedido">Pedido</th>
+                <th data-sort="cliente">Cliente</th>
+                <th data-sort="codigo">Código</th>
+                <th data-sort="descripcion">Descripción</th>
+                <th data-sort="unidades">Unidades almacenadas</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for gaveta in gavetas_activas %}
+                <tr class="striped" data-cliente="{{ gaveta.cliente|lower }}" data-codigo="{{ gaveta.codigo|lower }}">
+                    <td>{{ gaveta.nombre }}</td>
+                    <td>#{{ gaveta.pedido_id }}</td>
+                    <td>{{ gaveta.cliente }}</td>
+                    <td>{{ gaveta.codigo }}</td>
+                    <td>{{ gaveta.descripcion }}</td>
+                    <td>{{ gaveta.unidades }}</td>
+                    <td>
+                        <form method="post" class="inline-actions">
+                            <input type="hidden" name="accion" value="ajustar_linea" />
+                            <input type="hidden" name="pedido_id" value="{{ gaveta.pedido_id }}" />
+                            <input type="hidden" name="codigo" value="{{ gaveta.codigo }}" />
+                            <label class="small" for="ajuste-{{ loop.index }}">Ajustar en gaveta</label>
+                            <div class="table-actions">
+                                <button type="submit" name="delta" value="1">+1</button>
+                                <button type="submit" name="delta" value="-1" class="btn-secondary">-1</button>
+                            </div>
+                            <label class="small" for="traslado-{{ loop.index }}">Mover a</label>
+                            <input type="text" id="traslado-{{ loop.index }}" name="nueva_gaveta" placeholder="Nueva gaveta" />
+                            <button type="submit" class="btn-secondary">Actualizar</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="pagination" id="paginacion-gavetas" aria-label="Paginación gavetas"></div>
 {% else %}
     <div class="empty-state">
         <p>Todavía no se han asignado gavetas a los pedidos.</p>
     </div>
 {% endif %}
 
-<div id="modal-crear-albaran" style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.3); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;">
-    <div style="background: #fff; border-radius: 10px; padding: 1.25rem; max-width: 480px; width: 100%; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12); display: grid; gap: 0.75rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
-            <h3 style="margin: 0;">Crear albarán</h3>
-            <button type="button" id="cerrar-modal-albaran" style="background: none; color: #2d3436; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.25rem 0.5rem;">✕</button>
+<div id="modal-crear-albaran" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="titulo-modal-albaran">
+    <div class="modal">
+        <div class="section-header">
+            <h3 id="titulo-modal-albaran" style="margin: 0;">Crear albarán</h3>
+            <button type="button" id="cerrar-modal-albaran" class="btn-ghost">✕</button>
         </div>
-        <form method="post" id="form-crear-albaran" style="display: grid; gap: 0.75rem;">
-            <div style="display: grid; gap: 0.35rem;">
+        <form method="post" id="form-crear-albaran">
+            <div>
                 <label for="numero_albaran">Nombre o número</label>
                 <input type="text" id="numero_albaran" name="numero" value="{{ numero_sugerido }}" placeholder="Ej. {{ numero_sugerido }}" />
             </div>
-            <div style="display: grid; gap: 0.35rem;">
+            <div>
                 <label for="proveedor_albaran">Proveedor</label>
                 <input type="text" id="proveedor_albaran" name="proveedor" placeholder="Nombre del proveedor" />
             </div>
             <input type="hidden" name="accion" value="nuevo_albaran" />
-            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                <button type="button" id="cancelar-modal-albaran" style="background: #dcdde1; color: #2d3436; border-color: #dcdde1;">Cancelar</button>
+            <div class="toolbar" style="justify-content: flex-end;">
+                <button type="button" id="cancelar-modal-albaran" class="btn-secondary">Cancelar</button>
                 <button type="submit">Crear albarán</button>
             </div>
         </form>
@@ -229,5 +366,134 @@
             }
         });
     }
+
+    const tableState = {};
+
+    function filterAndRender(tableId, filters, paginationId, pageSize = 8) {
+        const table = document.getElementById(tableId);
+        const pagination = document.getElementById(paginationId);
+        if (!table) return;
+
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        const filtered = rows.filter((row) => {
+            const cliente = row.dataset.cliente || '';
+            const codigo = row.dataset.codigo || '';
+            const matchCliente = cliente.includes(filters.cliente.toLowerCase());
+            const matchCodigo = codigo.includes(filters.codigo.toLowerCase());
+            return matchCliente && matchCodigo;
+        });
+
+        const sortKey = tableState[tableId]?.sortKey;
+        const sortDir = tableState[tableId]?.sortDir || 'asc';
+        if (sortKey) {
+            filtered.sort((a, b) => {
+                const getValue = (row) => {
+                    if (sortKey === 'fecha') return row.dataset.fecha || '';
+                    const cellIndex = Array.from(table.querySelectorAll('th')).findIndex((th) => th.dataset.sort === sortKey);
+                    return row.children[cellIndex]?.innerText || '';
+                };
+                const valA = getValue(a).toString().toLowerCase();
+                const valB = getValue(b).toString().toLowerCase();
+                if (!isNaN(valA) && !isNaN(valB)) {
+                    return sortDir === 'asc' ? valA - valB : valB - valA;
+                }
+                return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            });
+        }
+
+        const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+        const currentPage = Math.min(tableState[tableId]?.page || 1, totalPages);
+        tableState[tableId] = { ...tableState[tableId], page: currentPage, filtered };
+
+        rows.forEach((row) => (row.style.display = 'none'));
+        filtered
+            .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+            .forEach((row) => (row.style.display = '')); 
+
+        if (pagination) {
+            pagination.innerHTML = '';
+            const info = document.createElement('span');
+            info.textContent = `Página ${currentPage} de ${totalPages}`;
+            pagination.appendChild(info);
+
+            const prev = document.createElement('button');
+            prev.className = 'btn-secondary';
+            prev.textContent = 'Anterior';
+            prev.disabled = currentPage === 1;
+            prev.addEventListener('click', () => {
+                tableState[tableId].page = Math.max(1, currentPage - 1);
+                filterAndRender(tableId, filters, paginationId, pageSize);
+            });
+
+            const next = document.createElement('button');
+            next.className = 'btn-secondary';
+            next.textContent = 'Siguiente';
+            next.disabled = currentPage === totalPages;
+            next.addEventListener('click', () => {
+                tableState[tableId].page = Math.min(totalPages, currentPage + 1);
+                filterAndRender(tableId, filters, paginationId, pageSize);
+            });
+
+            pagination.appendChild(prev);
+            pagination.appendChild(next);
+        }
+    }
+
+    function setupTable(tableId, paginationId, filterClienteId, filterCodigoId) {
+        const filters = { cliente: '', codigo: '' };
+        const apply = () => filterAndRender(tableId, filters, paginationId);
+
+        const inputCliente = document.getElementById(filterClienteId);
+        const inputCodigo = document.getElementById(filterCodigoId);
+        if (inputCliente) inputCliente.addEventListener('input', (e) => { filters.cliente = e.target.value; apply(); });
+        if (inputCodigo) inputCodigo.addEventListener('input', (e) => { filters.codigo = e.target.value; apply(); });
+
+        const table = document.getElementById(tableId);
+        if (table) {
+            table.querySelectorAll('th[data-sort]').forEach((th) => {
+                th.addEventListener('click', () => {
+                    const key = th.dataset.sort;
+                    const current = tableState[tableId]?.sortKey === key ? tableState[tableId].sortDir : 'asc';
+                    tableState[tableId] = { ...tableState[tableId], sortKey: key, sortDir: current === 'asc' ? 'desc' : 'asc' };
+                    apply();
+                });
+            });
+        }
+
+        apply();
+    }
+
+    function exportTable(tableId, name, format = 'csv') {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        const rows = tableState[tableId]?.filtered || Array.from(table.querySelectorAll('tbody tr'));
+        const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.innerText.trim());
+        const data = rows.map((row) => Array.from(row.children).slice(0, headers.length).map((cell) => cell.innerText.trim()));
+        const csv = [headers, ...data]
+            .map((line) => line.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+
+        if (format === 'csv') {
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${name}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+        } else {
+            const html = `<table>${table.innerHTML}</table>`;
+            const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${name}.xls`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+    }
+
+    setupTable('tabla-pendientes', 'paginacion-pendientes', 'filtro-cliente-pendientes', 'filtro-codigo-pendientes');
+    setupTable('tabla-gavetas', 'paginacion-gavetas', 'filtro-cliente-gavetas', 'filtro-codigo-gavetas');
 </script>
 {% endblock %}
