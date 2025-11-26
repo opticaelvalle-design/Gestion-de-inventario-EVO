@@ -1558,25 +1558,36 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
     if asignacion:
         return clave, asignacion, False
 
-    nombre = _generar_nombre_gaveta()
-    nueva_gaveta = {
-        "nombre": nombre,
-        "tipo": "Gaveta",
-        "created_at": datetime.now(),
-    }
-    storage_locations.append(nueva_gaveta)
-    with get_connection() as conn:
-        conn.execute(
-            "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
-            (nueva_gaveta["nombre"], nueva_gaveta["tipo"], nueva_gaveta["created_at"].isoformat()),
-        )
+    asignacion_existente = next(
+        (asig for asig in gaveta_asignaciones.values() if asig["pedido_id"] == pedido["id"]),
+        None,
+    )
+
+    if asignacion_existente:
+        gaveta = asignacion_existente["gaveta"]
+        gaveta_creada = False
+    else:
+        nombre = _generar_nombre_gaveta()
+        gaveta = {"nombre": nombre, "tipo": "Gaveta", "created_at": datetime.now()}
+        storage_locations.append(gaveta)
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
+                (gaveta["nombre"], gaveta["tipo"], gaveta["created_at"].isoformat()),
+            )
+        gaveta_creada = True
+
+    fecha_creacion_gaveta = (
+        asignacion_existente["gaveta"]["created_at"] if asignacion_existente else gaveta["created_at"]
+    )
+
     asignacion = {
         "pedido_id": pedido["id"],
         "cliente": pedido["cliente"],
         "codigo": linea["codigo"],
         "descripcion": linea.get("descripcion") or linea.get("nombre", linea["codigo"]),
         "unidades": 0,
-        "gaveta": nueva_gaveta,
+        "gaveta": gaveta,
     }
     gaveta_asignaciones[clave] = asignacion
     with get_connection() as conn:
@@ -1591,12 +1602,12 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
                 asignacion["cliente"],
                 asignacion["descripcion"],
                 asignacion["unidades"],
-                nueva_gaveta["nombre"],
-                nueva_gaveta["tipo"],
-                nueva_gaveta["created_at"].isoformat(),
+                gaveta["nombre"],
+                gaveta["tipo"],
+                fecha_creacion_gaveta.isoformat(),
             ),
         )
-    return clave, asignacion, True
+    return clave, asignacion, gaveta_creada
 
 
 def _actualizar_unidades_gaveta(clave, delta: int):
@@ -1652,11 +1663,14 @@ def _actualizar_destino_gaveta(clave, nuevo_nombre: str):
         return None
 
     nueva_gaveta = _asegurar_gaveta_existente(nuevo_nombre)
-    asignacion["gaveta"] = nueva_gaveta
+    for asignacion_pedido in gaveta_asignaciones.values():
+        if asignacion_pedido["pedido_id"] == asignacion["pedido_id"]:
+            asignacion_pedido["gaveta"] = nueva_gaveta
+
     with get_connection() as conn:
         conn.execute(
-            "UPDATE gaveta_asignaciones SET gaveta_nombre = ? WHERE pedido_id = ? AND lower(codigo) = ?",
-            (nuevo_nombre, clave[0], clave[1].lower()),
+            "UPDATE gaveta_asignaciones SET gaveta_nombre = ?, gaveta_tipo = ? WHERE pedido_id = ?",
+            (nuevo_nombre, nueva_gaveta["tipo"], asignacion["pedido_id"]),
         )
     return asignacion
 
