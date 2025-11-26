@@ -7,6 +7,16 @@
     <style>
         :root {
             color-scheme: light;
+            --base-font-size: 16px;
+            --primary: #273c75;
+            --primary-strong: #1b2b58;
+            --accent: #e1b12c;
+            --surface: #fff;
+            --text: #2f3640;
+            --muted: #57606f;
+            --border: #dcdde1;
+            --danger: #c23616;
+            --success: #1b8f45;
         }
         * {
             box-sizing: border-box;
@@ -15,7 +25,9 @@
             margin: 0;
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f5f6fa;
-            color: #2f3640;
+            color: var(--text);
+            font-size: var(--base-font-size);
+            line-height: 1.5;
         }
         header {
             background: linear-gradient(135deg, #273c75, #40739e);
@@ -181,30 +193,68 @@
         textarea {
             width: 100%;
             padding: 0.75rem;
-            border-radius: 8px;
-            border: 1px solid #dcdde1;
+            border-radius: 10px;
+            border: 1px solid var(--border);
             box-sizing: border-box;
             font-size: 1rem;
+            background: #fff;
         }
         button,
         input[type="submit"],
         .button-link {
-            background-color: #273c75;
+            background-color: var(--primary);
             color: #fff;
-            border: none;
+            border: 1px solid var(--primary);
             padding: 0.75rem 1.25rem;
-            border-radius: 999px;
-            font-weight: 600;
+            border-radius: 12px;
+            font-weight: 700;
             cursor: pointer;
             text-decoration: none;
             text-align: center;
-            transition: background-color 0.2s ease, transform 0.2s ease;
+            transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
         }
         button:hover,
         input[type="submit"]:hover,
         .button-link:hover {
             background-color: #40739e;
             transform: translateY(-1px);
+        }
+        button:focus-visible,
+        input[type="submit"]:focus-visible,
+        .button-link:focus-visible,
+        select:focus-visible,
+        input:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid #ffcc00;
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(64, 115, 158, 0.25);
+        }
+        .btn-secondary {
+            background: #f1f2f6;
+            color: #2f3640;
+            border-color: #dcdde1;
+        }
+        .btn-ghost {
+            background: transparent;
+            color: #2f3640;
+            border-color: transparent;
+        }
+        .btn-warning {
+            background: #f6b93b;
+            border-color: #f6b93b;
+            color: #2d3436;
+        }
+        .btn-danger {
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+        .btn-success {
+            background: var(--success);
+            border-color: var(--success);
+        }
+        .pill {
+            padding: 0.45rem 0.75rem;
+            border-radius: 999px;
         }
         .muted {
             color: #57606f;
@@ -352,6 +402,111 @@
             display: grid;
             gap: 0.5rem;
         }
+        .surface-grid {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: 320px 1fr;
+            align-items: start;
+        }
+        .sidebar {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            padding: 1.25rem;
+            position: sticky;
+            top: 6.25rem;
+            display: grid;
+            gap: 0.75rem;
+        }
+        .sidebar h3 {
+            margin: 0;
+            color: #273c75;
+        }
+        .sidebar-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 0.5rem;
+        }
+        .sidebar-list button,
+        .sidebar-list .button-link {
+            width: 100%;
+            justify-content: flex-start;
+        }
+        .table-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+        .filters-row {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filters-row label {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .inline-input {
+            max-width: 120px;
+        }
+        .table-actions {
+            display: flex;
+            gap: 0.35rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .pagination {
+            display: flex;
+            gap: 0.35rem;
+            align-items: center;
+        }
+        .badge-contrast {
+            background: #192a56;
+            color: #fff;
+        }
+        .text-muted {
+            color: var(--muted);
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.35);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+        .modal {
+            background: #fff;
+            border-radius: 12px;
+            padding: 1.25rem;
+            width: min(520px, 100%);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.16);
+            display: grid;
+            gap: 0.75rem;
+        }
+        .font-controls {
+            display: inline-flex;
+            gap: 0.35rem;
+            align-items: center;
+        }
         .panel-title {
             margin: 0;
             color: #273c75;
@@ -377,6 +532,9 @@
             }
             .content-header {
                 flex-direction: column;
+            }
+            .surface-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
