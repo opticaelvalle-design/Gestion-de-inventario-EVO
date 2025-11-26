@@ -1,4 +1,5 @@
 from datetime import datetime
+import csv
 import io
 import sqlite3
 from pathlib import Path
@@ -1874,6 +1875,199 @@ def _deshacer_ultima_lectura():
     return registro
 
 
+@app.route("/lectura-codigos/ajustar-linea", methods=["POST"])
+def ajustar_linea_pendiente():
+    pedido_id = request.form.get("pedido_id", type=int)
+    codigo = request.form.get("codigo", "").strip()
+    recibidas = request.form.get("recibidas", type=int)
+
+    if pedido_id is None or not codigo:
+        flash("Selecciona un pedido y un código válidos para ajustar.", "error")
+        return redirect(url_for("lectura_codigos") + "#pendientes")
+
+    pedido = next((p for p in purchase_orders if p["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido indicado.", "error")
+        return redirect(url_for("lectura_codigos") + "#pendientes")
+
+    linea = next(
+        (l for l in pedido["lineas"] if l["codigo"].lower() == codigo.lower()), None
+    )
+    if not linea:
+        flash("El código no pertenece al pedido seleccionado.", "error")
+        return redirect(url_for("lectura_codigos") + "#pendientes")
+
+    if recibidas is None:
+        flash("Introduce una cantidad válida.", "warning")
+        return redirect(url_for("lectura_codigos") + "#pendientes")
+
+    recibidas = max(0, min(recibidas, linea["cantidad_pedida"]))
+    linea["cantidad_recibida"] = recibidas
+    linea["cantidad_pendiente"] = max(linea["cantidad_pedida"] - recibidas, 0)
+    _persistir_linea_pedido(pedido_id, linea)
+    flash(
+        f"Cantidad ajustada para {codigo}: recibidas {recibidas} de {linea['cantidad_pedida']}.",
+        "success",
+    )
+    return redirect(url_for("lectura_codigos") + "#pendientes")
+
+
+@app.route("/lectura-codigos/mover-gaveta", methods=["POST"])
+def mover_gaveta_activa():
+    pedido_id = request.form.get("pedido_id", type=int)
+    codigo = request.form.get("codigo", "").strip()
+    destino_nombre = request.form.get("gaveta_destino", "").strip()
+
+    if pedido_id is None or not codigo or not destino_nombre:
+        flash("Selecciona la gaveta de destino para mover la asignación.", "warning")
+        return redirect(url_for("lectura_codigos") + "#gavetas")
+
+    clave = _clave_gaveta(pedido_id, codigo)
+    asignacion = gaveta_asignaciones.get(clave)
+    if not asignacion:
+        flash("No hay una gaveta activa para ese código.", "error")
+        return redirect(url_for("lectura_codigos") + "#gavetas")
+
+    destino = next(
+        (
+            ubicacion
+            for ubicacion in storage_locations
+            if ubicacion["tipo"].lower() == "gaveta"
+            and ubicacion["nombre"].lower() == destino_nombre.lower()
+        ),
+        None,
+    )
+
+    if not destino:
+        flash("Selecciona una gaveta existente para mover las unidades.", "error")
+        return redirect(url_for("lectura_codigos") + "#gavetas")
+
+    _transferir_unidades_asignacion(asignacion, destino)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE gaveta_asignaciones
+            SET gaveta_nombre = ?, gaveta_tipo = ?
+            WHERE pedido_id = ? AND lower(codigo) = ?
+            """,
+            (destino["nombre"], destino["tipo"], pedido_id, codigo.lower()),
+        )
+
+    flash(
+        f"Se movieron las unidades de {codigo} a la gaveta {destino['nombre']}.",
+        "success",
+    )
+    return redirect(url_for("lectura_codigos") + "#gavetas")
+
+
+@app.route("/lectura-codigos/exportar")
+def exportar_operativa_lectura():
+    tipo = request.args.get("tipo", "pendientes")
+    formato = request.args.get("formato", "csv")
+
+    if tipo == "gavetas":
+        data = _listar_gavetas_activas()
+        filename_base = "gavetas_activas"
+        headers = [
+            "Gaveta",
+            "Pedido",
+            "Cliente",
+            "Código",
+            "Descripción",
+            "Unidades",
+            "Asignada",
+        ]
+    else:
+        data = _lineas_pendientes()
+        filename_base = "lineas_pendientes"
+        headers = [
+            "Pedido",
+            "Cliente",
+            "Código",
+            "Descripción",
+            "Pedidas",
+            "Recibidas",
+            "Pendientes",
+            "Fecha",
+        ]
+
+    if formato == "xlsx":
+        wb = Workbook()
+        ws = wb.active
+        ws.append(headers)
+        for item in data:
+            if tipo == "gavetas":
+                ws.append(
+                    [
+                        item["nombre"],
+                        item["pedido_id"],
+                        item["cliente"],
+                        item["codigo"],
+                        item["descripcion"],
+                        item["unidades"],
+                        item["created_at"].strftime("%d/%m/%Y"),
+                    ]
+                )
+            else:
+                ws.append(
+                    [
+                        item["pedido_id"],
+                        item["cliente"],
+                        item["codigo"],
+                        item["descripcion"],
+                        item["cantidad_pedida"],
+                        item["cantidad_recibida"],
+                        item["cantidad_pendiente"],
+                        item["fecha"].strftime("%d/%m/%Y"),
+                    ]
+                )
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        filename = f"{filename_base}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(headers)
+    for item in data:
+        if tipo == "gavetas":
+            writer.writerow(
+                [
+                    item["nombre"],
+                    item["pedido_id"],
+                    item["cliente"],
+                    item["codigo"],
+                    item["descripcion"],
+                    item["unidades"],
+                    item["created_at"].strftime("%d/%m/%Y"),
+                ]
+            )
+        else:
+            writer.writerow(
+                [
+                    item["pedido_id"],
+                    item["cliente"],
+                    item["codigo"],
+                    item["descripcion"],
+                    item["cantidad_pedida"],
+                    item["cantidad_recibida"],
+                    item["cantidad_pendiente"],
+                    item["fecha"].strftime("%d/%m/%Y"),
+                ]
+            )
+    output = io.BytesIO()
+    output.write(buffer.getvalue().encode("utf-8"))
+    output.seek(0)
+    filename = f"{filename_base}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return send_file(output, as_attachment=True, download_name=filename, mimetype="text/csv")
+
+
 @app.route("/lectura-codigos", methods=["GET", "POST"])
 def lectura_codigos():
     global active_delivery_note_id
@@ -1989,6 +2183,11 @@ def lectura_codigos():
     numero_sugerido = _generar_numero_albaran()
     lineas_pendientes = _lineas_pendientes()
     gavetas_activas = _listar_gavetas_activas()
+    gavetas_existentes = [
+        ubicacion
+        for ubicacion in storage_locations
+        if ubicacion["tipo"].lower() == "gaveta"
+    ]
     albaranes_disponibles = sorted(
         delivery_notes, key=lambda nota: nota["fecha"], reverse=True
     )
@@ -1998,6 +2197,7 @@ def lectura_codigos():
         resultado=resultado,
         lineas_pendientes=lineas_pendientes,
         gavetas_activas=gavetas_activas,
+        gavetas_existentes=gavetas_existentes,
         albaran_activo=albaran_activo,
         albaranes=albaranes_disponibles,
         numero_sugerido=numero_sugerido,
@@ -2663,11 +2863,19 @@ def albaran_detalle(albaran_id: int):
         return redirect(url_for("albaranes"))
 
     totales = _totales_albaran(albaran)
+    albaranes_resumen = sorted(
+        (
+            {"id": nota["id"], "numero": nota["numero"], "proveedor": nota["proveedor"]}
+            for nota in delivery_notes
+        ),
+        key=lambda nota: nota["numero"],
+    )
 
     return render_template(
         "albaran_detalle.html",
         albaran=albaran,
         totales=totales,
+        albaranes_resumen=albaranes_resumen,
     )
 
 
