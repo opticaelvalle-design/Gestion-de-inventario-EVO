@@ -1,5 +1,52 @@
 {% extends "base.html" %}
 {% block title %}Lectura de códigos · Gestión de Inventario EVO{% endblock %}
+{% block extra_styles %}
+<style>
+    .ultima-lectura {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+        padding: 1.5rem;
+        display: grid;
+        gap: 0.75rem;
+        border: 2px solid #273c75;
+    }
+
+    .ultima-lectura h3 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: #273c75;
+    }
+
+    .ultima-lectura .detalle-principal {
+        display: grid;
+        gap: 0.35rem;
+        font-size: 1.1rem;
+        line-height: 1.7;
+    }
+
+    .ultima-lectura .linea-estado {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+
+    .ultima-lectura .linea-estado span {
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+        background: #e7f0ff;
+        color: #1b2b58;
+    }
+
+    .ultima-lectura .subdetalle {
+        color: #273c75;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="surface-grid">
     <aside class="sidebar" aria-label="Selector rápido de albarán">
@@ -55,9 +102,6 @@
                     <h2 id="lectura-heading">Lectura de códigos</h2>
                     <p class="text-muted">Escanea o introduce manualmente un código para registrar la recepción unidad a unidad.</p>
                 </div>
-                <div class="font-controls" aria-label="Estado de accesibilidad">
-                    <span class="badge badge-info">Contraste reforzado</span>
-                </div>
             </div>
             <div class="stats-grid">
                 <div class="stat-card">
@@ -91,29 +135,29 @@
                 <button type="submit" class="btn-danger">Deshacer última lectura</button>
             </form>
             {% if resultado %}
-                <div class="stacked-panel" aria-live="polite">
-                    <h3 class="panel-title">Última lectura</h3>
-                    <p class="panel-content">
-                        Pedido #{{ resultado.pedido_id }} · {{ resultado.pedido_nombre }} · {{ resultado.cliente }}<br />
-                        Código {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} /
-                        {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}
-                    </p>
-                    {% if resultado.albaran %}
-                        <p class="panel-content">Albarán: <strong>{{ resultado.albaran }}</strong>
-                            {% if resultado.linea_albaran %} · Unidades en albarán: {{ resultado.linea_albaran.cantidad }}{% endif %}
-                        </p>
-                    {% endif %}
-                    {% if resultado.gaveta %}
-                        <p class="panel-content">Ubicación asignada: <strong>{{ resultado.gaveta }}</strong> · Unidades almacenadas en la gaveta: {{ resultado.unidades_gaveta }}</p>
-                        {% if resultado.gaveta_creada %}
-                            <p class="panel-content" style="color: #0097e6; font-weight: 600;">Se creó una nueva gaveta para este pedido y código.</p>
+                <div class="ultima-lectura" aria-live="polite">
+                    <div class="linea-estado">
+                        <span>Última lectura</span>
+                        {% if resultado.deshacer %}
+                            <span style="background:#ffe8e6; color:#c23616;">Lectura revertida</span>
+                        {% elif resultado.completado %}
+                            <span style="background:#eaf7ef; color:#1b8f45;">Línea completada</span>
                         {% endif %}
-                    {% endif %}
-                    {% if resultado.deshacer %}
-                        <p class="panel-content" style="color: #c23616; font-weight: 600;">Se revirtió la última lectura.</p>
-                    {% elif resultado.completado %}
-                        <p class="panel-content" style="color: #009432; font-weight: 600;">¡Línea completada!</p>
-                    {% endif %}
+                    </div>
+                    <h3>Pedido #{{ resultado.pedido_id }} · {{ resultado.pedido_nombre }}</h3>
+                    <div class="detalle-principal">
+                        <div><span class="subdetalle">Cliente:</span> {{ resultado.cliente }}</div>
+                        <div><span class="subdetalle">Código:</span> {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} / {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}</div>
+                        {% if resultado.albaran %}
+                            <div><span class="subdetalle">Albarán:</span> {{ resultado.albaran }}{% if resultado.linea_albaran %} · Unidades en albarán: {{ resultado.linea_albaran.cantidad }}{% endif %}</div>
+                        {% endif %}
+                        {% if resultado.gaveta %}
+                            <div><span class="subdetalle">Gaveta asignada:</span> {{ resultado.gaveta }} · Unidades en gaveta: {{ resultado.unidades_gaveta }}</div>
+                            {% if resultado.gaveta_creada %}
+                                <div style="color: #0097e6; font-weight: 700;">Se creó una nueva gaveta para este pedido y código.</div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
                 </div>
             {% endif %}
         </section>
@@ -157,7 +201,6 @@
                                 <th>Recibidas</th>
                                 <th>Pendientes</th>
                                 <th>Fecha</th>
-                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -171,16 +214,6 @@
                                     <td>{{ linea.cantidad_recibida }}</td>
                                     <td>{{ linea.cantidad_pendiente }}</td>
                                     <td>{{ linea.fecha.strftime('%d/%m/%Y') }}</td>
-                                    <td>
-                                        <form method="post" class="table-actions">
-                                            <input type="hidden" name="accion" value="ajustar_linea" />
-                                            <input type="hidden" name="pedido_id" value="{{ linea.pedido_id }}" />
-                                            <input type="hidden" name="codigo_linea" value="{{ linea.codigo }}" />
-                                            <label for="ajuste-{{ loop.index }}" class="sr-only">Nuevas recibidas</label>
-                                            <input type="number" name="nuevas_recibidas" id="ajuste-{{ loop.index }}" min="0" max="{{ linea.cantidad_pedida }}" value="{{ linea.cantidad_recibida }}" class="inline-input" />
-                                            <button type="submit" class="btn-success">Actualizar</button>
-                                        </form>
-                                    </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
