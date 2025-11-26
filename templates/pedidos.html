@@ -44,23 +44,23 @@
     <form method="post" class="form-grid" style="gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items: end;">
         <div>
             <label for="nombre">Nombre del pedido</label>
-            <input type="text" id="nombre" name="nombre" placeholder="Ej. Reposición trimestral" />
+            <input type="text" id="nombre" name="nombre" placeholder="Nombre del pedido" />
         </div>
         <div>
             <label for="cliente">Cliente</label>
-            <input type="text" id="cliente" name="cliente" placeholder="Ej. Componentes Atlas" required />
+            <input type="text" id="cliente" name="cliente" placeholder="Nombre del cliente" required />
         </div>
         <div>
             <label for="codigo">Código</label>
-            <input type="text" id="codigo" name="codigo" placeholder="Ej. ABC123" required />
+            <input type="text" id="codigo" name="codigo" placeholder="Código del artículo" required />
         </div>
         <div>
             <label for="descripcion">Descripción</label>
-            <input type="text" id="descripcion" name="descripcion" placeholder="Producto" required />
+            <input type="text" id="descripcion" name="descripcion" placeholder="Descripción del artículo" required />
         </div>
         <div>
             <label for="cantidad">Cantidad pedida</label>
-            <input type="number" id="cantidad" name="cantidad" min="1" placeholder="Ej. 50" required />
+            <input type="number" id="cantidad" name="cantidad" min="1" placeholder="Cantidad solicitada" required />
         </div>
         <div style="display: flex; justify-content: flex-end;">
             <button type="submit">Añadir pedido</button>
