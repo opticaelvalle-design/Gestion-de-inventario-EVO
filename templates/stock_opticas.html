@@ -40,6 +40,11 @@
     .spaced-top { margin-top: 1rem; }
     .list-default { padding-left: 1.25rem; margin: 0; }
     .is-hidden { display: none; }
+    .tab-list { display: inline-flex; gap: 0.5rem; background: #f5f6fa; padding: 0.35rem; border-radius: 999px; border: 1px solid #dcdde1; }
+    .tab-link { padding: 0.35rem 0.9rem; border-radius: 999px; text-decoration: none; color: #2f3640; font-weight: 600; }
+    .tab-link.is-active { background: #273c75; color: #fff; }
+    .catalog-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .catalog-meta { display: grid; gap: 0.35rem; }
 </style>
 {% endblock %}
 
@@ -51,7 +56,12 @@
             <p class="stock-subtitle">Control independiente para las cuatro sucursales.</p>
         </div>
         <div class="stock-controls">
+            <div class="tab-list" role="tablist">
+                <a class="tab-link {% if vista == 'stock' %}is-active{% endif %}" href="{{ url_for('stock_opticas', sucursal=sucursal, vista='stock') }}" role="tab">Stock</a>
+                <a class="tab-link {% if vista == 'catalogo' %}is-active{% endif %}" href="{{ url_for('stock_opticas', sucursal=sucursal, vista='catalogo') }}" role="tab">Catálogo</a>
+            </div>
             <form method="get" class="control-form">
+                <input type="hidden" name="vista" value="{{ vista }}">
                 <label for="sucursal">Sucursal</label>
                 <select name="sucursal" id="sucursal" onchange="this.form.submit()">
                     {% for nombre in sucursales %}
@@ -61,154 +71,245 @@
                 {% if termino_busqueda %}
                     <input type="hidden" name="buscar" value="{{ termino_busqueda }}">
                 {% endif %}
-            </form>
-            <form method="get" class="control-form">
-                <input type="hidden" name="sucursal" value="{{ sucursal }}">
-                <label for="buscar">Buscar</label>
-                <input type="search" id="buscar" name="buscar" placeholder="Código o nombre" value="{{ termino_busqueda }}">
-                <button type="submit">Buscar</button>
-                {% if termino_busqueda %}
-                    <a class="button-link" href="{{ url_for('stock_opticas', sucursal=sucursal) }}">Limpiar</a>
+                {% if catalogo_busqueda %}
+                    <input type="hidden" name="buscar_catalogo" value="{{ catalogo_busqueda }}">
+                {% endif %}
+                {% if catalogo_tipo %}
+                    <input type="hidden" name="tipo_catalogo" value="{{ catalogo_tipo }}">
                 {% endif %}
             </form>
-        </div>
-    </div>
-    <div class="stock-grid">
-        <div class="stat-card stat-card--muted">
-            <h3 class="section-title">Resumen sucursal</h3>
-            <p>Productos: <strong>{{ productos|length }}</strong></p>
-            <p>Unidades totales: <strong>{{ totales_sucursal }}</strong></p>
-        </div>
-        <div class="action-panel">
-            <div class="action-panel__actions">
-                <a href="{{ url_for('descargar_plantilla_stock_opticas') }}" class="button-link button-link--muted">Descargar plantilla en blanco</a>
-                <a href="{{ url_for('exportar_stock_opticas', sucursal=sucursal) }}" class="button-link">Exportar stock de {{ sucursal }}</a>
-            </div>
-            <form method="post" enctype="multipart/form-data" class="stack">
-                <input type="hidden" name="accion" value="importar_excel">
-                <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-                <label for="archivo_excel">Crear artículos desde Excel (.xlsx)</label>
-                <input type="file" id="archivo_excel" name="archivo_excel" accept=".xlsx" required>
-                <small class="muted-text">Columnas esperadas: codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad.</small>
-                <button type="submit">Importar archivo</button>
-            </form>
-        </div>
-        <div class="action-panel action-panel--dashed">
-            <form method="post" id="lectura-form" class="stack">
-                <input type="hidden" name="accion" value="lectura_codigo">
-                <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-                <label for="codigo_barras">Entrada rápida por código de barras</label>
-                <div class="inline-actions">
-                    <input type="text" name="codigo_barras" id="codigo_barras" placeholder="Escanea o escribe el código" required autofocus>
-                    <button type="submit">Registrar</button>
-                </div>
-                <small class="muted-text">Tras pulsar Enter el campo se limpia para la siguiente lectura.</small>
-            </form>
-        </div>
-    </div>
-</section>
-
-<section class="card section-spaced">
-    <h3 class="section-title">Añadir producto a {{ sucursal }}</h3>
-    <form method="post" class="form-grid align-end">
-        <input type="hidden" name="accion" value="nuevo_producto">
-        <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-        <div class="form-row">
-            <label for="codigo">Código</label>
-            <input type="text" id="codigo" name="codigo" placeholder="Ej: OP-5005" required>
-        </div>
-        <div class="form-row">
-            <label for="nombre">Nombre</label>
-            <input type="text" id="nombre" name="nombre" placeholder="Nombre comercial" required>
-        </div>
-        <div class="form-row">
-            <label for="tipo">Tipo</label>
-            <input type="text" id="tipo" name="tipo" placeholder="Montura, lente...">
-        </div>
-        <div class="form-row">
-            <label for="precio_mayor">Precio mayorista (€)</label>
-            <input type="number" step="0.01" id="precio_mayor" name="precio_mayor" value="0">
-        </div>
-        <div class="form-row">
-            <label for="precio_pvp">Precio PVP (€)</label>
-            <input type="number" step="0.01" id="precio_pvp" name="precio_pvp" value="0">
-        </div>
-        <div class="form-row">
-            <label for="cantidad">Cantidad</label>
-            <input type="number" id="cantidad" name="cantidad" min="1" value="1" required>
-        </div>
-        <div class="form-row">
-            <button type="submit">Guardar producto</button>
-        </div>
-    </form>
-</section>
-
-<section class="table-section">
-    <table>
-        <thead>
-            <tr>
-                <th>Código</th>
-                <th>Nombre</th>
-                <th>Tipo</th>
-                <th>Unidades</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% if productos %}
-                {% for producto in productos %}
-                    <tr>
-                        <td>{{ producto.codigo }}</td>
-                        <td>{{ producto.nombre }}</td>
-                        <td>{{ producto.tipo or 'N/D' }}</td>
-                        <td><strong>{{ producto.cantidad }}</strong></td>
-                        <td>
-                            <div data-actions class="stack">
-                                <div class="inline-actions">
-                                    <button type="button" class="button-link" data-toggle-form="add" aria-label="Añadir unidades">Añadir</button>
-                                    <button type="button" class="button-link" data-retirar data-codigo="{{ producto.codigo }}" data-nombre="{{ producto.nombre }}" data-max="{{ producto.cantidad }}">Retirar</button>
-                                    <button type="button" class="button-link" data-toggle-form="transfer" aria-label="Transferir unidades">Transferir</button>
-                                    <button type="button" class="button-link" data-detalle data-producto='{{ producto | tojson }}' data-sucursal="{{ sucursal }}">Ver detalle</button>
-                                </div>
-                                <form method="post" class="inline-form action-form" data-form="add">
-                                    <input type="hidden" name="accion" value="ajustar">
-                                    <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-                                    <input type="hidden" name="codigo" value="{{ producto.codigo }}">
-                                    <label>Unidades a añadir</label>
-                                    <input type="number" name="cantidad" min="1" value="1">
-                                    <div class="inline-actions">
-                                        <button type="submit">Confirmar</button>
-                                        <button type="button" class="button-link" data-cancel-form="add">Cancelar</button>
-                                    </div>
-                                </form>
-                                <form method="post" class="inline-form action-form" data-form="transfer">
-                                    <input type="hidden" name="accion" value="transferir">
-                                    <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-                                    <input type="hidden" name="codigo" value="{{ producto.codigo }}">
-                                    <label>Destino y unidades</label>
-                                    <select name="destino">
-                                        {% for destino in sucursales %}
-                                            <option value="{{ destino }}" {% if destino == sucursal %}disabled{% endif %}>{{ destino }}</option>
-                                        {% endfor %}
-                                    </select>
-                                    <input type="number" name="cantidad" min="1" value="1">
-                                    <div class="inline-actions">
-                                        <button type="submit">Confirmar</button>
-                                        <button type="button" class="button-link" data-cancel-form="transfer">Cancelar</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                {% endfor %}
-            {% else %}
-                <tr>
-                    <td colspan="5" class="empty-state">Aún no hay productos en esta sucursal.</td>
-                </tr>
+            {% if vista == 'stock' %}
+                <form method="get" class="control-form">
+                    <input type="hidden" name="vista" value="stock">
+                    <input type="hidden" name="sucursal" value="{{ sucursal }}">
+                    <label for="buscar">Buscar</label>
+                    <input type="search" id="buscar" name="buscar" placeholder="Código o nombre" value="{{ termino_busqueda }}">
+                    <button type="submit">Buscar</button>
+                    {% if termino_busqueda %}
+                        <a class="button-link" href="{{ url_for('stock_opticas', sucursal=sucursal, vista='stock') }}">Limpiar</a>
+                    {% endif %}
+                </form>
             {% endif %}
-        </tbody>
-    </table>
+        </div>
+    </div>
+    {% if vista == 'stock' %}
+        <div class="stock-grid">
+            <div class="stat-card stat-card--muted">
+                <h3 class="section-title">Resumen sucursal</h3>
+                <p>Productos: <strong>{{ productos|length }}</strong></p>
+                <p>Unidades totales: <strong>{{ totales_sucursal }}</strong></p>
+            </div>
+            <div class="action-panel">
+                <div class="action-panel__actions">
+                    <a href="{{ url_for('descargar_plantilla_stock_opticas') }}" class="button-link button-link--muted">Descargar plantilla en blanco</a>
+                    <a href="{{ url_for('exportar_stock_opticas', sucursal=sucursal) }}" class="button-link">Exportar stock de {{ sucursal }}</a>
+                </div>
+                <form method="post" enctype="multipart/form-data" class="stack">
+                    <input type="hidden" name="accion" value="importar_excel">
+                    <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                    <label for="archivo_excel">Crear artículos desde Excel (.xlsx)</label>
+                    <input type="file" id="archivo_excel" name="archivo_excel" accept=".xlsx" required>
+                    <small class="muted-text">Columnas esperadas: codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad.</small>
+                    <button type="submit">Importar archivo</button>
+                </form>
+            </div>
+            <div class="action-panel action-panel--dashed">
+                <form method="post" id="lectura-form" class="stack">
+                    <input type="hidden" name="accion" value="lectura_codigo">
+                    <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                    <label for="codigo_barras">Entrada rápida por código de barras</label>
+                    <div class="inline-actions">
+                        <input type="text" name="codigo_barras" id="codigo_barras" placeholder="Escanea o escribe el código" required autofocus>
+                        <button type="submit">Registrar</button>
+                    </div>
+                    <small class="muted-text">Tras pulsar Enter el campo se limpia para la siguiente lectura.</small>
+                </form>
+            </div>
+        </div>
+    {% endif %}
 </section>
+{% if vista == 'stock' %}
+    <section class="card section-spaced">
+        <h3 class="section-title">Añadir producto a {{ sucursal }}</h3>
+        <form method="post" class="form-grid align-end">
+            <input type="hidden" name="accion" value="nuevo_producto">
+            <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+            <div class="form-row">
+                <label for="codigo">Código</label>
+                <input type="text" id="codigo" name="codigo" placeholder="Ej: OP-5005" value="{{ nuevo_codigo }}" required>
+            </div>
+            <div class="form-row">
+                <label for="nombre">Nombre</label>
+                <input type="text" id="nombre" name="nombre" placeholder="Nombre comercial" required>
+            </div>
+            <div class="form-row">
+                <label for="tipo">Tipo</label>
+                <input type="text" id="tipo" name="tipo" placeholder="Montura, lente...">
+            </div>
+            <div class="form-row">
+                <label for="precio_mayor">Precio mayorista (€)</label>
+                <input type="number" step="0.01" id="precio_mayor" name="precio_mayor" value="0">
+            </div>
+            <div class="form-row">
+                <label for="precio_pvp">Precio PVP (€)</label>
+                <input type="number" step="0.01" id="precio_pvp" name="precio_pvp" value="0">
+            </div>
+            <div class="form-row">
+                <label for="cantidad">Cantidad</label>
+                <input type="number" id="cantidad" name="cantidad" min="1" value="1" required>
+            </div>
+            <div class="form-row">
+                <button type="submit">Guardar producto</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="table-section">
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Tipo</th>
+                    <th>Unidades</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if productos %}
+                    {% for producto in productos %}
+                        <tr>
+                            <td>{{ producto.codigo }}</td>
+                            <td>{{ producto.nombre }}</td>
+                            <td>{{ producto.tipo or 'N/D' }}</td>
+                            <td><strong>{{ producto.cantidad }}</strong></td>
+                            <td>
+                                <div data-actions class="stack">
+                                    <div class="inline-actions">
+                                        <button type="button" class="button-link" data-toggle-form="add" aria-label="Añadir unidades">Añadir</button>
+                                        <button type="button" class="button-link" data-retirar data-codigo="{{ producto.codigo }}" data-nombre="{{ producto.nombre }}" data-max="{{ producto.cantidad }}">Retirar</button>
+                                        <button type="button" class="button-link" data-toggle-form="transfer" aria-label="Transferir unidades">Transferir</button>
+                                        <button type="button" class="button-link" data-detalle data-producto='{{ producto | tojson }}' data-sucursal="{{ sucursal }}">Ver detalle</button>
+                                    </div>
+                                    <form method="post" class="inline-form action-form" data-form="add">
+                                        <input type="hidden" name="accion" value="ajustar">
+                                        <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                                        <input type="hidden" name="codigo" value="{{ producto.codigo }}">
+                                        <label>Unidades a añadir</label>
+                                        <input type="number" name="cantidad" min="1" value="1">
+                                        <div class="inline-actions">
+                                            <button type="submit">Confirmar</button>
+                                            <button type="button" class="button-link" data-cancel-form="add">Cancelar</button>
+                                        </div>
+                                    </form>
+                                    <form method="post" class="inline-form action-form" data-form="transfer">
+                                        <input type="hidden" name="accion" value="transferir">
+                                        <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                                        <input type="hidden" name="codigo" value="{{ producto.codigo }}">
+                                        <label>Destino y unidades</label>
+                                        <select name="destino">
+                                            {% for destino in sucursales %}
+                                                <option value="{{ destino }}" {% if destino == sucursal %}disabled{% endif %}>{{ destino }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <input type="number" name="cantidad" min="1" value="1">
+                                        <div class="inline-actions">
+                                            <button type="submit">Confirmar</button>
+                                            <button type="button" class="button-link" data-cancel-form="transfer">Cancelar</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="empty-state">Aún no hay productos en esta sucursal.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </section>
+{% else %}
+    <section class="card section-spaced">
+        <h3 class="section-title">Catálogo de artículos</h3>
+        <div class="catalog-grid">
+            <div class="action-panel">
+                <div class="catalog-meta">
+                    <strong>Total de referencias: {{ catalogo_items|length }}</strong>
+                    <div class="action-panel__actions">
+                        <a href="{{ url_for('descargar_plantilla_catalogo_opticas') }}" class="button-link button-link--muted">Descargar plantilla catálogo</a>
+                    </div>
+                </div>
+                <form method="post" enctype="multipart/form-data" class="stack">
+                    <input type="hidden" name="accion" value="importar_catalogo">
+                    <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+                    <input type="hidden" name="vista" value="catalogo">
+                    <label for="archivo_catalogo">Subir catálogo (.xlsx)</label>
+                    <input type="file" id="archivo_catalogo" name="archivo_catalogo" accept=".xlsx" required>
+                    <small class="muted-text">Columnas esperadas: codigo, modelo, tipo, pvp, pvo.</small>
+                    <button type="submit">Importar catálogo</button>
+                </form>
+            </div>
+            <div class="action-panel action-panel--dashed">
+                <form method="get" class="stack">
+                    <input type="hidden" name="vista" value="catalogo">
+                    <input type="hidden" name="sucursal" value="{{ sucursal }}">
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="buscar_catalogo">Buscar</label>
+                            <input type="search" id="buscar_catalogo" name="buscar_catalogo" placeholder="Código o modelo" value="{{ catalogo_busqueda }}">
+                        </div>
+                        <div class="form-row">
+                            <label for="tipo_catalogo">Tipo</label>
+                            <select id="tipo_catalogo" name="tipo_catalogo">
+                                <option value="">Todos</option>
+                                {% for tipo in catalogo_tipos %}
+                                    <option value="{{ tipo }}" {% if catalogo_tipo == tipo|lower %}selected{% endif %}>{{ tipo }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="inline-actions">
+                        <button type="submit">Filtrar</button>
+                        <a class="button-link" href="{{ url_for('stock_opticas', sucursal=sucursal, vista='catalogo') }}">Limpiar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="table-section">
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Modelo</th>
+                    <th>Tipo</th>
+                    <th>PVP (€)</th>
+                    <th>PVO (€)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if catalogo_items %}
+                    {% for entrada in catalogo_items %}
+                        <tr>
+                            <td>{{ entrada.codigo }}</td>
+                            <td>{{ entrada.modelo }}</td>
+                            <td>{{ entrada.tipo or 'N/D' }}</td>
+                            <td>{{ entrada.pvp or 0 }}</td>
+                            <td>{{ entrada.pvo or 0 }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="empty-state">Aún no hay artículos en el catálogo.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </section>
+{% endif %}
 
 <div id="motivo-modal" class="modal modal--small">
     <div class="modal__content">
@@ -429,14 +530,24 @@
         if (input) {
             input.focus();
         }
+        const codigoField = document.getElementById('codigo');
+        if (codigoField && codigoField.value) {
+            const nombreField = document.getElementById('nombre');
+            nombreField?.focus();
+        }
     });
 
-    document.getElementById('lectura-form').addEventListener('submit', () => {
-        const input = document.getElementById('codigo_barras');
-        setTimeout(() => {
-            input.value = '';
-            input.focus();
-        }, 50);
-    });
+    const lecturaForm = document.getElementById('lectura-form');
+    if (lecturaForm) {
+        lecturaForm.addEventListener('submit', () => {
+            const input = document.getElementById('codigo_barras');
+            setTimeout(() => {
+                if (input) {
+                    input.value = '';
+                    input.focus();
+                }
+            }, 50);
+        });
+    }
 </script>
 {% endblock %}

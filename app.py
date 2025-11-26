@@ -286,6 +286,7 @@ active_delivery_note_id = None
 
 OPTICA_BRANCHES = ["Blanca", "Abarán", "Bajo", "Murcia"]
 optica_inventory = {sucursal: [] for sucursal in OPTICA_BRANCHES}
+optica_catalogo: list[dict] = []
 
 
 def _registrar_movimiento_optica(producto: dict, sucursal: str, descripcion: str):
@@ -460,6 +461,89 @@ def _importar_excel_optica(archivo, sucursal: str):
         else:
             _crear_producto_optica(
                 sucursal, codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad
+            )
+            creadas += 1
+
+    return {
+        "procesadas": procesadas,
+        "creadas": creadas,
+        "actualizadas": actualizadas,
+        "omitidas": omitidas,
+    }
+
+
+def _buscar_catalogo_optica(codigo: str):
+    return next(
+        (item for item in optica_catalogo if item["codigo"].lower() == codigo.lower()),
+        None,
+    )
+
+
+def _importar_catalogo_optica(archivo):
+    try:
+        workbook = load_workbook(archivo, data_only=True)
+    except Exception as exc:  # pragma: no cover - validación defensiva
+        raise ValueError("No se pudo leer el Excel del catálogo.") from exc
+
+    sheet = workbook.active
+    rows = list(sheet.iter_rows(values_only=True))
+    if not rows:
+        raise ValueError("El catálogo está vacío.")
+
+    headers = [str(cell).strip().lower() if cell is not None else "" for cell in rows[0]]
+    header_map = {nombre: idx for idx, nombre in enumerate(headers)}
+    required_headers = {"codigo", "modelo"}
+
+    if not required_headers.issubset(header_map):
+        raise ValueError("La plantilla debe incluir las columnas: codigo y modelo.")
+
+    def _leer_valor(row, key, default=None):
+        idx = header_map.get(key)
+        if idx is None or idx >= len(row):
+            return default
+        valor = row[idx]
+        return default if valor is None else valor
+
+    procesadas = creadas = actualizadas = omitidas = 0
+
+    for row in rows[1:]:
+        if all(cell is None or str(cell).strip() == "" for cell in row):
+            continue
+
+        procesadas += 1
+        codigo = str(_leer_valor(row, "codigo", "")).strip()
+        modelo = str(_leer_valor(row, "modelo", "")).strip()
+        if not codigo or not modelo:
+            omitidas += 1
+            continue
+
+        tipo = str(_leer_valor(row, "tipo", "")).strip()
+        pvp = _leer_valor(row, "pvp", 0) or 0
+        pvo = _leer_valor(row, "pvo", 0) or 0
+
+        try:
+            pvp = float(pvp)
+        except (TypeError, ValueError):
+            pvp = 0.0
+
+        try:
+            pvo = float(pvo)
+        except (TypeError, ValueError):
+            pvo = 0.0
+
+        existente = _buscar_catalogo_optica(codigo)
+        if existente:
+            existente.update({"modelo": modelo, "tipo": tipo, "pvp": pvp, "pvo": pvo})
+            actualizadas += 1
+        else:
+            optica_catalogo.append(
+                {
+                    "codigo": codigo,
+                    "modelo": modelo,
+                    "tipo": tipo,
+                    "pvp": pvp,
+                    "pvo": pvo,
+                }
             )
             creadas += 1
 
@@ -927,7 +1011,14 @@ def stock_opticas():
     if sucursal not in OPTICA_BRANCHES:
         sucursal = OPTICA_BRANCHES[0]
 
+    vista = request.form.get("vista") or request.args.get("vista") or "stock"
+    if vista not in {"stock", "catalogo"}:
+        vista = "stock"
+
     termino_busqueda = request.args.get("buscar", "").strip().lower()
+    catalogo_busqueda = request.args.get("buscar_catalogo", "").strip().lower()
+    catalogo_tipo = request.args.get("tipo_catalogo", "").strip().lower()
+    nuevo_codigo = request.args.get("nuevo_codigo", "").strip()
 
     if request.method == "POST":
         accion = request.form.get("accion")
@@ -986,6 +1077,28 @@ def stock_opticas():
                         "success",
                     )
             return redirect(url_for("stock_opticas", sucursal=sucursal))
+
+        if accion == "importar_catalogo":
+            archivo = request.files.get("archivo_catalogo")
+            if not archivo or archivo.filename == "":
+                flash("Selecciona un archivo Excel para el catálogo.", "error")
+            elif not archivo.filename.lower().endswith(".xlsx"):
+                flash("El catálogo debe ser un archivo .xlsx.", "error")
+            else:
+                try:
+                    resumen = _importar_catalogo_optica(archivo)
+                except ValueError as exc:
+                    flash(str(exc), "error")
+                else:
+                    flash(
+                        "Catálogo actualizado: "
+                        f"{resumen['procesadas']} filas, "
+                        f"{resumen['creadas']} nuevas, "
+                        f"{resumen['actualizadas']} actualizadas, "
+                        f"{resumen['omitidas']} omitidas.",
+                        "success",
+                    )
+            return redirect(url_for("stock_opticas", sucursal=sucursal, vista="catalogo"))
 
         if accion == "ajustar":
             codigo = request.form.get("codigo", "").strip()
@@ -1133,15 +1246,34 @@ def stock_opticas():
             else:
                 producto = _buscar_producto_optica(sucursal, codigo)
                 if not producto:
-                    producto = _crear_producto_optica(
-                        sucursal,
-                        codigo,
-                        f"Artículo {codigo}",
-                        "Código de barras",
-                        0.0,
-                        0.0,
-                        0,
-                    )
+                    ficha_catalogo = _buscar_catalogo_optica(codigo)
+                    if ficha_catalogo:
+                        producto = _crear_producto_optica(
+                            sucursal,
+                            codigo,
+                            ficha_catalogo.get("modelo") or f"Artículo {codigo}",
+                            ficha_catalogo.get("tipo", ""),
+                            float(ficha_catalogo.get("pvo", 0) or 0),
+                            float(ficha_catalogo.get("pvp", 0) or 0),
+                            0,
+                        )
+                        flash(
+                            "Artículo creado desde el catálogo y sumado al stock.",
+                            "success",
+                        )
+                    else:
+                        flash(
+                            "El código no existe en el catálogo. Completa los datos del artículo.",
+                            "warning",
+                        )
+                        return redirect(
+                            url_for(
+                                "stock_opticas",
+                                sucursal=sucursal,
+                                vista="stock",
+                                nuevo_codigo=codigo,
+                            )
+                        )
                 producto["cantidad"] += 1
                 _registrar_movimiento_optica(
                     producto,
@@ -1164,6 +1296,20 @@ def stock_opticas():
     totales_sucursal = sum(
         item["cantidad"] for item in _asegurar_sucursal_optica(sucursal)
     )
+
+    catalogo_filtrado = []
+    for entrada in optica_catalogo:
+        coincide_busqueda = (
+            not catalogo_busqueda
+            or catalogo_busqueda in entrada["codigo"].lower()
+            or catalogo_busqueda in entrada["modelo"].lower()
+        )
+        coincide_tipo = not catalogo_tipo or catalogo_tipo == entrada.get("tipo", "").lower()
+        if coincide_busqueda and coincide_tipo:
+            catalogo_filtrado.append(entrada)
+
+    catalogo_tipos = sorted({item["tipo"] for item in optica_catalogo if item.get("tipo")})
+
     return render_template(
         "stock_opticas.html",
         sucursal=sucursal,
@@ -1171,6 +1317,12 @@ def stock_opticas():
         productos=productos,
         totales_sucursal=totales_sucursal,
         termino_busqueda=termino_busqueda,
+        catalogo_items=catalogo_filtrado,
+        catalogo_tipos=catalogo_tipos,
+        catalogo_busqueda=catalogo_busqueda,
+        catalogo_tipo=catalogo_tipo,
+        vista=vista,
+        nuevo_codigo=nuevo_codigo,
     )
 
 
@@ -1182,6 +1334,18 @@ def descargar_plantilla_stock_opticas():
         output,
         as_attachment=True,
         download_name="plantilla_stock_opticas.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@app.route("/stock-opticas/catalogo/plantilla")
+def descargar_plantilla_catalogo_opticas():
+    headers = ["codigo", "modelo", "tipo", "pvp", "pvo"]
+    output = _crear_excel(headers, [], "Plantilla catálogo ópticas")
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="plantilla_catalogo_opticas.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
