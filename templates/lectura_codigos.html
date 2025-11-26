@@ -96,6 +96,33 @@
         </div>
     </aside>
     <section class="stack">
+        {% if resultado %}
+            <section class="ultima-lectura" aria-live="polite">
+                <div class="linea-estado">
+                    <span>Última lectura</span>
+                    {% if resultado.deshacer %}
+                        <span style="background:#ffe8e6; color:#c23616;">Lectura revertida</span>
+                    {% elif resultado.completado %}
+                        <span style="background:#eaf7ef; color:#1b8f45;">Línea completada</span>
+                    {% endif %}
+                </div>
+                <h3>Pedido #{{ resultado.pedido_id }} · {{ resultado.pedido_nombre }}</h3>
+                <div class="detalle-principal">
+                    <div><span class="subdetalle">Cliente:</span> {{ resultado.cliente }}</div>
+                    <div><span class="subdetalle">Código:</span> {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} / {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}</div>
+                    {% if resultado.albaran %}
+                        <div><span class="subdetalle">Albarán:</span> {{ resultado.albaran }}{% if resultado.linea_albaran %} · Unidades en albarán: {{ resultado.linea_albaran.cantidad }}{% endif %}</div>
+                    {% endif %}
+                    {% if resultado.gaveta %}
+                        <div><span class="subdetalle">Gaveta asignada:</span> {{ resultado.gaveta }} · Unidades en gaveta: {{ resultado.unidades_gaveta }}</div>
+                        {% if resultado.gaveta_creada %}
+                            <div style="color: #0097e6; font-weight: 700;">Se creó una nueva gaveta para este pedido y código.</div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </section>
+        {% endif %}
+
         <section class="card" aria-labelledby="lectura-heading">
             <div class="section-header">
                 <div>
@@ -134,32 +161,6 @@
                 <input type="hidden" name="accion" value="deshacer" />
                 <button type="submit" class="btn-danger">Deshacer última lectura</button>
             </form>
-            {% if resultado %}
-                <div class="ultima-lectura" aria-live="polite">
-                    <div class="linea-estado">
-                        <span>Última lectura</span>
-                        {% if resultado.deshacer %}
-                            <span style="background:#ffe8e6; color:#c23616;">Lectura revertida</span>
-                        {% elif resultado.completado %}
-                            <span style="background:#eaf7ef; color:#1b8f45;">Línea completada</span>
-                        {% endif %}
-                    </div>
-                    <h3>Pedido #{{ resultado.pedido_id }} · {{ resultado.pedido_nombre }}</h3>
-                    <div class="detalle-principal">
-                        <div><span class="subdetalle">Cliente:</span> {{ resultado.cliente }}</div>
-                        <div><span class="subdetalle">Código:</span> {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} / {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}</div>
-                        {% if resultado.albaran %}
-                            <div><span class="subdetalle">Albarán:</span> {{ resultado.albaran }}{% if resultado.linea_albaran %} · Unidades en albarán: {{ resultado.linea_albaran.cantidad }}{% endif %}</div>
-                        {% endif %}
-                        {% if resultado.gaveta %}
-                            <div><span class="subdetalle">Gaveta asignada:</span> {{ resultado.gaveta }} · Unidades en gaveta: {{ resultado.unidades_gaveta }}</div>
-                            {% if resultado.gaveta_creada %}
-                                <div style="color: #0097e6; font-weight: 700;">Se creó una nueva gaveta para este pedido y código.</div>
-                            {% endif %}
-                        {% endif %}
-                    </div>
-                </div>
-            {% endif %}
         </section>
 
         <section aria-labelledby="pendientes-heading">
