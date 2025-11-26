@@ -1054,7 +1054,9 @@ def stock_opticas():
                         sucursal, codigo, nombre, tipo, precio_mayor, precio_pvp, cantidad
                     )
                 flash("Producto guardado en el stock de ópticas.", "success")
-            return redirect(url_for("stock_opticas", sucursal=sucursal))
+            return redirect(
+                url_for("stock_opticas", sucursal=sucursal, vista="catalogo")
+            )
 
         if accion == "importar_excel":
             archivo = request.files.get("archivo_excel")
@@ -1270,7 +1272,7 @@ def stock_opticas():
                             url_for(
                                 "stock_opticas",
                                 sucursal=sucursal,
-                                vista="stock",
+                                vista="catalogo",
                                 nuevo_codigo=codigo,
                             )
                         )

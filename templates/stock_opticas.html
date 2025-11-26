@@ -129,41 +129,6 @@
     {% endif %}
 </section>
 {% if vista == 'stock' %}
-    <section class="card section-spaced">
-        <h3 class="section-title">Añadir producto a {{ sucursal }}</h3>
-        <form method="post" class="form-grid align-end">
-            <input type="hidden" name="accion" value="nuevo_producto">
-            <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
-            <div class="form-row">
-                <label for="codigo">Código</label>
-                <input type="text" id="codigo" name="codigo" placeholder="Ej: OP-5005" value="{{ nuevo_codigo }}" required>
-            </div>
-            <div class="form-row">
-                <label for="nombre">Nombre</label>
-                <input type="text" id="nombre" name="nombre" placeholder="Nombre comercial" required>
-            </div>
-            <div class="form-row">
-                <label for="tipo">Tipo</label>
-                <input type="text" id="tipo" name="tipo" placeholder="Montura, lente...">
-            </div>
-            <div class="form-row">
-                <label for="precio_mayor">Precio mayorista (€)</label>
-                <input type="number" step="0.01" id="precio_mayor" name="precio_mayor" value="0">
-            </div>
-            <div class="form-row">
-                <label for="precio_pvp">Precio PVP (€)</label>
-                <input type="number" step="0.01" id="precio_pvp" name="precio_pvp" value="0">
-            </div>
-            <div class="form-row">
-                <label for="cantidad">Cantidad</label>
-                <input type="number" id="cantidad" name="cantidad" min="1" value="1" required>
-            </div>
-            <div class="form-row">
-                <button type="submit">Guardar producto</button>
-            </div>
-        </form>
-    </section>
-
     <section class="table-section">
         <table>
             <thead>
@@ -239,6 +204,7 @@
                     <strong>Total de referencias: {{ catalogo_items|length }}</strong>
                     <div class="action-panel__actions">
                         <a href="{{ url_for('descargar_plantilla_catalogo_opticas') }}" class="button-link button-link--muted">Descargar plantilla catálogo</a>
+                        <button type="button" class="button-link" id="abrir-nuevo">Crear producto</button>
                     </div>
                 </div>
                 <form method="post" enctype="multipart/form-data" class="stack">
@@ -288,6 +254,7 @@
                     <th>Tipo</th>
                     <th>PVP (€)</th>
                     <th>PVO (€)</th>
+                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -299,6 +266,16 @@
                             <td>{{ entrada.tipo or 'N/D' }}</td>
                             <td>{{ entrada.pvp or 0 }}</td>
                             <td>{{ entrada.pvo or 0 }}</td>
+                            <td>
+                                <button type="button" class="button-link" data-crear-producto
+                                        data-codigo="{{ entrada.codigo }}"
+                                        data-modelo="{{ entrada.modelo }}"
+                                        data-tipo="{{ entrada.tipo }}"
+                                        data-pvp="{{ entrada.pvp }}"
+                                        data-pvo="{{ entrada.pvo }}">
+                                    Crear producto
+                                </button>
+                            </td>
                         </tr>
                     {% endfor %}
                 {% else %}
@@ -310,6 +287,51 @@
         </table>
     </section>
 {% endif %}
+
+<div id="nuevo-modal" class="modal modal--wide">
+    <div class="modal__content">
+        <div class="modal__header">
+            <div>
+                <h3 class="modal__title">Crear producto en stock</h3>
+                <p class="modal__subtitle">Completa los datos del artículo antes de añadirlo a {{ sucursal }}.</p>
+            </div>
+            <button type="button" class="button-link button-link--neutral" id="cerrar-nuevo">Cerrar</button>
+        </div>
+        <form method="post" id="nuevo-form" class="stack spaced-top">
+            <input type="hidden" name="accion" value="nuevo_producto">
+            <input type="hidden" name="sucursal_actual" value="{{ sucursal }}">
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="nuevo-codigo">Código</label>
+                    <input type="text" id="nuevo-codigo" name="codigo" placeholder="Ej: OP-5005" required>
+                </div>
+                <div class="form-row">
+                    <label for="nuevo-nombre">Nombre</label>
+                    <input type="text" id="nuevo-nombre" name="nombre" placeholder="Nombre comercial" required>
+                </div>
+                <div class="form-row">
+                    <label for="nuevo-tipo">Tipo</label>
+                    <input type="text" id="nuevo-tipo" name="tipo" placeholder="Montura, lente...">
+                </div>
+                <div class="form-row">
+                    <label for="nuevo-mayor">Precio mayorista (€)</label>
+                    <input type="number" step="0.01" id="nuevo-mayor" name="precio_mayor" value="0">
+                </div>
+                <div class="form-row">
+                    <label for="nuevo-pvp">Precio PVP (€)</label>
+                    <input type="number" step="0.01" id="nuevo-pvp" name="precio_pvp" value="0">
+                </div>
+                <div class="form-row">
+                    <label for="nuevo-cantidad">Cantidad</label>
+                    <input type="number" id="nuevo-cantidad" name="cantidad" min="1" value="1" required>
+                </div>
+            </div>
+            <div class="form-row flex-end">
+                <button type="submit">Crear y guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <div id="motivo-modal" class="modal modal--small">
     <div class="modal__content">
@@ -401,6 +423,61 @@
 
 {% block extra_scripts %}
 <script>
+    const nuevoModal = document.getElementById('nuevo-modal');
+    const abrirNuevo = document.getElementById('abrir-nuevo');
+    const cerrarNuevo = document.getElementById('cerrar-nuevo');
+    const nuevoForm = document.getElementById('nuevo-form');
+    const nuevoCodigo = document.getElementById('nuevo-codigo');
+    const nuevoNombre = document.getElementById('nuevo-nombre');
+    const nuevoTipo = document.getElementById('nuevo-tipo');
+    const nuevoMayor = document.getElementById('nuevo-mayor');
+    const nuevoPvp = document.getElementById('nuevo-pvp');
+    const nuevoCantidad = document.getElementById('nuevo-cantidad');
+    const crearDesdeCatalogo = document.querySelectorAll('[data-crear-producto]');
+
+    const abrirNuevoModal = (prefill = {}) => {
+        if (!nuevoModal) return;
+        nuevoModal.classList.add('is-visible');
+        if (nuevoCodigo) {
+            nuevoCodigo.value = prefill.codigo || '';
+            nuevoCodigo.focus();
+            nuevoCodigo.select();
+        }
+        if (nuevoNombre) {
+            nuevoNombre.value = prefill.nombre || prefill.modelo || '';
+        }
+        if (nuevoTipo) {
+            nuevoTipo.value = prefill.tipo || '';
+        }
+        if (nuevoMayor) {
+            const mayor = prefill.precio_mayor ?? prefill.pvo ?? 0;
+            nuevoMayor.value = mayor || 0;
+        }
+        if (nuevoPvp) {
+            const pvp = prefill.precio_pvp ?? prefill.pvp ?? 0;
+            nuevoPvp.value = pvp || 0;
+        }
+        if (nuevoCantidad) {
+            nuevoCantidad.value = prefill.cantidad || 1;
+        }
+    };
+
+    abrirNuevo?.addEventListener('click', () => abrirNuevoModal());
+    crearDesdeCatalogo.forEach(btn => {
+        btn.addEventListener('click', () => {
+            abrirNuevoModal({
+                codigo: btn.dataset.codigo || '',
+                nombre: btn.dataset.modelo || '',
+                modelo: btn.dataset.modelo || '',
+                tipo: btn.dataset.tipo || '',
+                pvo: btn.dataset.pvo ? parseFloat(btn.dataset.pvo) : 0,
+                pvp: btn.dataset.pvp ? parseFloat(btn.dataset.pvp) : 0,
+            });
+        });
+    });
+
+    cerrarNuevo?.addEventListener('click', () => nuevoModal?.classList.remove('is-visible'));
+
     const motivoModal = document.getElementById('motivo-modal');
     const motivoButtons = document.querySelectorAll('[data-retirar]');
     const motivoOptions = document.querySelectorAll('[data-motivo]');
@@ -530,10 +607,9 @@
         if (input) {
             input.focus();
         }
-        const codigoField = document.getElementById('codigo');
-        if (codigoField && codigoField.value) {
-            const nombreField = document.getElementById('nombre');
-            nombreField?.focus();
+        const codigoPendiente = {{ nuevo_codigo|tojson }};
+        if (codigoPendiente) {
+            abrirNuevoModal({ codigo: codigoPendiente });
         }
     });
 
