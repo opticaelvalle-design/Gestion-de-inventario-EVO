@@ -1,182 +1,308 @@
 {% extends "base.html" %}
 {% block title %}Lectura de códigos · Gestión de Inventario EVO{% endblock %}
 {% block content %}
-<section class="card" style="gap: 1.25rem;">
-    <div>
-        <h2>Lectura de códigos</h2>
-        <p>Escanea o introduce manualmente un código para registrar la recepción unidad a unidad.</p>
-    </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.75rem; align-items: end;">
-        <div class="stat-card" style="gap: 0.35rem;">
-            <span>Albarán en curso</span>
+<div class="surface-grid">
+    <aside class="sidebar" aria-label="Selector rápido de albarán">
+        <div class="font-controls" aria-label="Controles de tamaño de fuente">
+            <span class="text-muted">Tamaño de texto</span>
+            <button type="button" class="btn-secondary pill" data-font-delta="-1">A-</button>
+            <button type="button" class="btn-secondary pill" data-font-delta="1">A+</button>
+        </div>
+        <div>
+            <h3>Albarán en curso</h3>
             {% if albaran_activo %}
-                <strong>{{ albaran_activo.numero }}</strong>
-                <small style="color: #353b48;">{{ albaran_activo.proveedor }} · {{ albaran_activo.fabrica }}</small>
+                <p class="panel-content"><strong>{{ albaran_activo.numero }}</strong><br><span class="text-muted">{{ albaran_activo.proveedor }} · {{ albaran_activo.fabrica }}</span></p>
+                <form method="post">
+                    <input type="hidden" name="accion" value="detener_albaran" />
+                    <button type="submit" class="btn-warning" aria-label="Detener lectura en el albarán activo">Detener lectura</button>
+                </form>
             {% else %}
-                <strong>Ninguno</strong>
-                <small style="color: #c23616; font-weight: 600;">Selecciona o crea un albarán antes de leer.</small>
+                <p class="text-muted">No hay albarán activo. Selecciona uno para empezar a leer.</p>
             {% endif %}
         </div>
-        <button type="button" id="abrir-modal-albaran" style="height: 100%;">Crear albarán nuevo</button>
-        <form method="post" style="gap: 0.35rem;">
-            <label for="albaran_id">Elegir albarán existente</label>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <select name="albaran_id" id="albaran_id" style="flex: 1; padding: 0.55rem 0.75rem;">
+        <button type="button" id="abrir-modal-albaran">Crear albarán nuevo</button>
+        <div>
+            <h3>Usar albarán existente</h3>
+            <form method="post" class="stack" aria-label="Seleccionar albarán existente">
+                <label for="albaran_id">Listado</label>
+                <select name="albaran_id" id="albaran_id">
                     <option value="" disabled selected>Selecciona un albarán</option>
                     {% for albaran in albaranes %}
                         <option value="{{ albaran.id }}">{{ albaran.numero }} · {{ albaran.proveedor }}</option>
                     {% endfor %}
                 </select>
                 <input type="hidden" name="accion" value="seleccionar_albaran" />
-                <button type="submit">Usar</button>
-            </div>
-        </form>
-        {% if albaran_activo %}
-            <form method="post" style="gap: 0.35rem;">
-                <input type="hidden" name="accion" value="detener_albaran" />
-                <button type="submit" style="background-color: #f6b93b; color: #2d3436; border-color: #f6b93b;">Dejar de leer en el albarán</button>
+                <button type="submit" class="btn-secondary">Usar albarán</button>
             </form>
-        {% endif %}
-    </div>
-    <form method="post" style="display: flex; flex-direction: column; gap: 0.5rem;">
-        <label for="codigo">Código de barras</label>
-        <input type="text" name="codigo" id="codigo" value="{{ codigo }}" placeholder="Ej. ABC123" autofocus autocomplete="off" />
-        <input type="hidden" name="accion" value="leer" />
-        <button type="submit">Registrar recepción</button>
-    </form>
-    <form method="post" style="align-self: flex-start;">
-        <input type="hidden" name="accion" value="deshacer" />
-        <button type="submit" style="background-color: #c23616; color: #fff; border-color: #c23616;">Deshacer última lectura</button>
-    </form>
-    {% if resultado %}
-        <div class="stat-card">
-            <span>Última lectura</span>
-            <strong>
-                Pedido #{{ resultado.pedido_id }} · {{ resultado.pedido_nombre }} · {{ resultado.cliente }}
-            </strong>
-            <p>
-                Código {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} /
-                {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}
-            </p>
-            {% if resultado.albaran %}
-                <p>
-                    Albarán: <strong>{{ resultado.albaran }}</strong>
-                    {% if resultado.linea_albaran %}
-                        · Unidades en albarán: {{ resultado.linea_albaran.cantidad }}
+            <p class="text-muted">Acceso rápido</p>
+            <ul class="sidebar-list">
+                {% for albaran in albaranes[:5] %}
+                    <li>
+                        <form method="post">
+                            <input type="hidden" name="accion" value="seleccionar_albaran" />
+                            <input type="hidden" name="albaran_id" value="{{ albaran.id }}" />
+                            <button type="submit" class="button-link">{{ albaran.numero }} · {{ albaran.proveedor }}</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </aside>
+    <section class="stack">
+        <section class="card" aria-labelledby="lectura-heading">
+            <div class="section-header">
+                <div>
+                    <h2 id="lectura-heading">Lectura de códigos</h2>
+                    <p class="text-muted">Escanea o introduce manualmente un código para registrar la recepción unidad a unidad.</p>
+                </div>
+                <div class="font-controls" aria-label="Estado de accesibilidad">
+                    <span class="badge badge-info">Contraste reforzado</span>
+                </div>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span>Albarán en curso</span>
+                    {% if albaran_activo %}
+                        <strong>{{ albaran_activo.numero }}</strong>
+                        <small class="text-muted">{{ albaran_activo.proveedor }} · {{ albaran_activo.fabrica }}</small>
+                    {% else %}
+                        <strong>Ninguno</strong>
+                        <small style="color: #c23616; font-weight: 600;">Selecciona o crea un albarán antes de leer.</small>
                     {% endif %}
-                </p>
-            {% endif %}
-            {% if resultado.gaveta %}
-                <p>
-                    Ubicación asignada:
-                    <strong>{{ resultado.gaveta }}</strong>
-                    · Unidades almacenadas en la gaveta: {{ resultado.unidades_gaveta }}
-                </p>
-                {% if resultado.gaveta_creada %}
-                    <p style="color: #0097e6; font-weight: 600;">
-                        Se creó una nueva gaveta para este pedido y código.
+                </div>
+                <div class="stat-card">
+                    <span>Última acción</span>
+                    <strong>{{ resultado.linea.codigo if resultado else 'Pendiente' }}</strong>
+                    <small class="text-muted">Mensajes claros y auditables</small>
+                </div>
+            </div>
+            <form method="post" class="stack" aria-label="Formulario de lectura">
+                <div>
+                    <label for="codigo">Código de barras</label>
+                    <input type="text" name="codigo" id="codigo" value="{{ codigo }}" placeholder="Ej. ABC123" autofocus autocomplete="off" />
+                </div>
+                <input type="hidden" name="accion" value="leer" />
+                <div class="table-actions">
+                    <button type="submit">Registrar recepción</button>
+                </div>
+            </form>
+            <form method="post" class="table-actions">
+                <input type="hidden" name="accion" value="deshacer" />
+                <button type="submit" class="btn-danger">Deshacer última lectura</button>
+            </form>
+            {% if resultado %}
+                <div class="stacked-panel" aria-live="polite">
+                    <h3 class="panel-title">Última lectura</h3>
+                    <p class="panel-content">
+                        Pedido #{{ resultado.pedido_id }} · {{ resultado.pedido_nombre }} · {{ resultado.cliente }}<br />
+                        Código {{ resultado.linea.codigo }} · Recibidas {{ resultado.linea.cantidad_recibida }} /
+                        {{ resultado.linea.cantidad_pedida }} · Pendientes {{ resultado.linea.cantidad_pendiente }}
                     </p>
-                {% endif %}
+                    {% if resultado.albaran %}
+                        <p class="panel-content">Albarán: <strong>{{ resultado.albaran }}</strong>
+                            {% if resultado.linea_albaran %} · Unidades en albarán: {{ resultado.linea_albaran.cantidad }}{% endif %}
+                        </p>
+                    {% endif %}
+                    {% if resultado.gaveta %}
+                        <p class="panel-content">Ubicación asignada: <strong>{{ resultado.gaveta }}</strong> · Unidades almacenadas en la gaveta: {{ resultado.unidades_gaveta }}</p>
+                        {% if resultado.gaveta_creada %}
+                            <p class="panel-content" style="color: #0097e6; font-weight: 600;">Se creó una nueva gaveta para este pedido y código.</p>
+                        {% endif %}
+                    {% endif %}
+                    {% if resultado.deshacer %}
+                        <p class="panel-content" style="color: #c23616; font-weight: 600;">Se revirtió la última lectura.</p>
+                    {% elif resultado.completado %}
+                        <p class="panel-content" style="color: #009432; font-weight: 600;">¡Línea completada!</p>
+                    {% endif %}
+                </div>
             {% endif %}
-            {% if resultado.deshacer %}
-                <p style="color: #c23616; font-weight: 600;">Se revirtió la última lectura.</p>
-            {% elif resultado.completado %}
-                <p style="color: #009432; font-weight: 600;">¡Línea completada!</p>
+        </section>
+
+        <section aria-labelledby="pendientes-heading">
+            <div class="table-toolbar">
+                <div>
+                    <h2 id="pendientes-heading" class="section-title">Líneas con unidades pendientes</h2>
+                    <p class="text-muted">Filtros y acciones en línea para minimizar cambios de pantalla.</p>
+                </div>
+                <div class="table-actions">
+                    <button type="button" class="btn-secondary" data-export="pendientes-table" data-type="csv">Exportar CSV</button>
+                    <button type="button" class="btn-secondary" data-export="pendientes-table" data-type="xls">Exportar XLS</button>
+                </div>
+            </div>
+            <form method="get" class="filters-row" aria-label="Filtros de líneas pendientes">
+                <label for="pendiente_cliente">Cliente</label>
+                <input type="text" name="pendiente_cliente" id="pendiente_cliente" value="{{ pendiente_cliente }}" class="inline-input" />
+                <label for="pendiente_codigo">Código</label>
+                <input type="text" name="pendiente_codigo" id="pendiente_codigo" value="{{ pendiente_codigo }}" class="inline-input" />
+                <label for="pendiente_orden">Orden</label>
+                <select name="pendiente_orden" id="pendiente_orden" class="inline-input">
+                    <option value="fecha_desc" {% if pendiente_orden == 'fecha_desc' %}selected{% endif %}>Fecha</option>
+                    <option value="pendientes" {% if pendiente_orden == 'pendientes' %}selected{% endif %}>Pendientes</option>
+                    <option value="cliente" {% if pendiente_orden == 'cliente' %}selected{% endif %}>Cliente</option>
+                    <option value="codigo" {% if pendiente_orden == 'codigo' %}selected{% endif %}>Código</option>
+                </select>
+                <input type="hidden" name="pendiente_pagina" value="1" />
+                <button type="submit" class="btn-secondary">Aplicar</button>
+            </form>
+            {% if lineas_pendientes %}
+                <div style="overflow-x: auto;">
+                    <table id="pendientes-table">
+                        <thead>
+                            <tr>
+                                <th>Pedido</th>
+                                <th>Cliente</th>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th>Pedidas</th>
+                                <th>Recibidas</th>
+                                <th>Pendientes</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for linea in lineas_pendientes %}
+                                <tr>
+                                    <td><a href="{{ url_for('pedido_detalle', pedido_id=linea.pedido_id) }}" class="button-link pill">#{{ linea.pedido_id }}</a></td>
+                                    <td>{{ linea.cliente }}</td>
+                                    <td>{{ linea.codigo }}</td>
+                                    <td>{{ linea.descripcion }}</td>
+                                    <td>{{ linea.cantidad_pedida }}</td>
+                                    <td>{{ linea.cantidad_recibida }}</td>
+                                    <td>{{ linea.cantidad_pendiente }}</td>
+                                    <td>{{ linea.fecha.strftime('%d/%m/%Y') }}</td>
+                                    <td>
+                                        <form method="post" class="table-actions">
+                                            <input type="hidden" name="accion" value="ajustar_linea" />
+                                            <input type="hidden" name="pedido_id" value="{{ linea.pedido_id }}" />
+                                            <input type="hidden" name="codigo_linea" value="{{ linea.codigo }}" />
+                                            <label for="ajuste-{{ loop.index }}" class="sr-only">Nuevas recibidas</label>
+                                            <input type="number" name="nuevas_recibidas" id="ajuste-{{ loop.index }}" min="0" max="{{ linea.cantidad_pedida }}" value="{{ linea.cantidad_recibida }}" class="inline-input" />
+                                            <button type="submit" class="btn-success">Actualizar</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" aria-label="Paginación líneas pendientes">
+                    <span class="text-muted">{{ total_lineas }} resultados</span>
+                    {% for pagina in range(1, paginas_pendientes + 1) %}
+                        <a class="button-link pill {% if pagina == pendiente_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', pendiente_pagina=pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden, gaveta_pagina=gaveta_pagina, gaveta_cliente=gaveta_cliente, gaveta_codigo=gaveta_codigo, gaveta_orden=gaveta_orden) }}">{{ pagina }}</a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>No hay unidades pendientes en ningún pedido.</p>
+                </div>
             {% endif %}
+        </section>
+
+        <section aria-labelledby="gavetas-heading">
+            <div class="table-toolbar">
+                <div>
+                    <h2 id="gavetas-heading" class="section-title">Gavetas activas</h2>
+                    <p class="text-muted">Gestiona las unidades y mueve el destino sin salir de la vista.</p>
+                </div>
+                <div class="table-actions">
+                    <button type="button" class="btn-secondary" data-export="gavetas-table" data-type="csv">Exportar CSV</button>
+                    <button type="button" class="btn-secondary" data-export="gavetas-table" data-type="xls">Exportar XLS</button>
+                </div>
+            </div>
+            <form method="get" class="filters-row" aria-label="Filtros de gavetas activas">
+                <label for="gaveta_cliente">Cliente</label>
+                <input type="text" name="gaveta_cliente" id="gaveta_cliente" value="{{ gaveta_cliente }}" class="inline-input" />
+                <label for="gaveta_codigo">Código</label>
+                <input type="text" name="gaveta_codigo" id="gaveta_codigo" value="{{ gaveta_codigo }}" class="inline-input" />
+                <label for="gaveta_orden">Orden</label>
+                <select name="gaveta_orden" id="gaveta_orden" class="inline-input">
+                    <option value="pedido" {% if gaveta_orden == 'pedido' %}selected{% endif %}>Pedido</option>
+                    <option value="codigo" {% if gaveta_orden == 'codigo' %}selected{% endif %}>Código</option>
+                    <option value="unidades" {% if gaveta_orden == 'unidades' %}selected{% endif %}>Unidades</option>
+                </select>
+                <input type="hidden" name="gaveta_pagina" value="1" />
+                <button type="submit" class="btn-secondary">Aplicar</button>
+            </form>
+            {% if gavetas_activas %}
+                <div style="overflow-x: auto;">
+                    <table id="gavetas-table">
+                        <thead>
+                            <tr>
+                                <th>Gaveta</th>
+                                <th>Pedido</th>
+                                <th>Cliente</th>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th>Unidades</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for gaveta in gavetas_activas %}
+                                <tr>
+                                    <td>{{ gaveta.nombre }}</td>
+                                    <td>#{{ gaveta.pedido_id }}</td>
+                                    <td>{{ gaveta.cliente }}</td>
+                                    <td>{{ gaveta.codigo }}</td>
+                                    <td>{{ gaveta.descripcion }}</td>
+                                    <td>{{ gaveta.unidades }}</td>
+                                    <td class="table-actions">
+                                        <form method="post" class="table-actions">
+                                            <input type="hidden" name="accion" value="actualizar_gaveta_unidades" />
+                                            <input type="hidden" name="pedido_id" value="{{ gaveta.pedido_id }}" />
+                                            <input type="hidden" name="codigo_linea" value="{{ gaveta.codigo }}" />
+                                            <label for="gaveta-unidades-{{ loop.index }}" class="sr-only">Unidades en gaveta</label>
+                                            <input type="number" class="inline-input" id="gaveta-unidades-{{ loop.index }}" name="nuevas_unidades" min="0" value="{{ gaveta.unidades }}" />
+                                            <button type="submit" class="btn-success">Ajustar</button>
+                                        </form>
+                                        <form method="post" class="table-actions">
+                                            <input type="hidden" name="accion" value="mover_gaveta" />
+                                            <input type="hidden" name="pedido_id" value="{{ gaveta.pedido_id }}" />
+                                            <input type="hidden" name="codigo_linea" value="{{ gaveta.codigo }}" />
+                                            <label for="mover-{{ loop.index }}" class="sr-only">Nueva gaveta</label>
+                                            <input type="text" class="inline-input" id="mover-{{ loop.index }}" name="nueva_gaveta" placeholder="Ej. Gaveta B3" />
+                                            <button type="submit" class="btn-warning">Mover</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" aria-label="Paginación de gavetas activas">
+                    <span class="text-muted">{{ total_gavetas }} gavetas</span>
+                    {% for pagina in range(1, paginas_gavetas + 1) %}
+                        <a class="button-link pill {% if pagina == gaveta_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', gaveta_pagina=pagina, gaveta_cliente=gaveta_cliente, gaveta_codigo=gaveta_codigo, gaveta_orden=gaveta_orden, pendiente_pagina=pendiente_pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden) }}">{{ pagina }}</a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>Todavía no se han asignado gavetas a los pedidos.</p>
+                </div>
+            {% endif %}
+        </section>
+    </section>
+</div>
+
+<div id="modal-crear-albaran" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-albaran-titulo">
+    <div class="modal">
+        <div class="section-header">
+            <h3 id="modal-albaran-titulo" class="panel-title">Crear albarán</h3>
+            <button type="button" id="cerrar-modal-albaran" class="btn-ghost" aria-label="Cerrar modal">✕</button>
         </div>
-    {% endif %}
-</section>
-
-<h2 class="section-title">Líneas con unidades pendientes</h2>
-{% if lineas_pendientes %}
-    <div style="overflow-x: auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Pedido</th>
-                    <th>Cliente</th>
-                    <th>Código</th>
-                    <th>Descripción</th>
-                    <th>Pedidas</th>
-                    <th>Recibidas</th>
-                    <th>Pendientes</th>
-                    <th>Fecha</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for linea in lineas_pendientes %}
-                    <tr>
-                        <td><a href="{{ url_for('pedido_detalle', pedido_id=linea.pedido_id) }}" class="button-link" style="padding: 0.35rem 0.65rem; font-size: 0.85rem;">#{{ linea.pedido_id }}</a></td>
-                        <td>{{ linea.cliente }}</td>
-                        <td>{{ linea.codigo }}</td>
-                        <td>{{ linea.descripcion }}</td>
-                        <td>{{ linea.cantidad_pedida }}</td>
-                        <td>{{ linea.cantidad_recibida }}</td>
-                        <td>{{ linea.cantidad_pendiente }}</td>
-                        <td>{{ linea.fecha.strftime('%d/%m/%Y') }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-{% else %}
-    <div class="empty-state">
-        <p>No hay unidades pendientes en ningún pedido.</p>
-    </div>
-{% endif %}
-
-<h2 class="section-title">Gavetas activas</h2>
-{% if gavetas_activas %}
-    <div style="overflow-x: auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Gaveta</th>
-                    <th>Pedido</th>
-                    <th>Cliente</th>
-                    <th>Código</th>
-                    <th>Descripción</th>
-                    <th>Unidades almacenadas</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for gaveta in gavetas_activas %}
-                    <tr>
-                        <td>{{ gaveta.nombre }}</td>
-                        <td>#{{ gaveta.pedido_id }}</td>
-                        <td>{{ gaveta.cliente }}</td>
-                        <td>{{ gaveta.codigo }}</td>
-                        <td>{{ gaveta.descripcion }}</td>
-                        <td>{{ gaveta.unidades }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-{% else %}
-    <div class="empty-state">
-        <p>Todavía no se han asignado gavetas a los pedidos.</p>
-    </div>
-{% endif %}
-
-<div id="modal-crear-albaran" style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.3); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;">
-    <div style="background: #fff; border-radius: 10px; padding: 1.25rem; max-width: 480px; width: 100%; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12); display: grid; gap: 0.75rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
-            <h3 style="margin: 0;">Crear albarán</h3>
-            <button type="button" id="cerrar-modal-albaran" style="background: none; color: #2d3436; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.25rem 0.5rem;">✕</button>
-        </div>
-        <form method="post" id="form-crear-albaran" style="display: grid; gap: 0.75rem;">
-            <div style="display: grid; gap: 0.35rem;">
+        <form method="post" id="form-crear-albaran" class="stack">
+            <div class="stack">
                 <label for="numero_albaran">Nombre o número</label>
                 <input type="text" id="numero_albaran" name="numero" value="{{ numero_sugerido }}" placeholder="Ej. {{ numero_sugerido }}" />
             </div>
-            <div style="display: grid; gap: 0.35rem;">
+            <div class="stack">
                 <label for="proveedor_albaran">Proveedor</label>
                 <input type="text" id="proveedor_albaran" name="proveedor" placeholder="Nombre del proveedor" />
             </div>
             <input type="hidden" name="accion" value="nuevo_albaran" />
-            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                <button type="button" id="cancelar-modal-albaran" style="background: #dcdde1; color: #2d3436; border-color: #dcdde1;">Cancelar</button>
+            <div class="table-actions" style="justify-content: flex-end;">
+                <button type="button" id="cancelar-modal-albaran" class="btn-secondary">Cancelar</button>
                 <button type="submit">Crear albarán</button>
             </div>
         </form>
@@ -229,5 +355,49 @@
             }
         });
     }
+
+    document.querySelectorAll('[data-font-delta]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const delta = Number(btn.dataset.fontDelta || 0);
+            const root = document.documentElement;
+            const current = parseFloat(getComputedStyle(root).getPropertyValue('--base-font-size')) || 16;
+            const updated = Math.max(14, Math.min(20, current + delta));
+            root.style.setProperty('--base-font-size', `${updated}px`);
+        });
+    });
+
+    const buildCsvFromTable = (table) => {
+        const rows = Array.from(table.querySelectorAll('tr'));
+        return rows
+            .map((row) => Array.from(row.querySelectorAll('th,td'))
+                .map((cell) => `"${cell.innerText.replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+    };
+
+    const downloadFile = (content, filename, mime) => {
+        const blob = new Blob([content], { type: mime });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    };
+
+    document.querySelectorAll('[data-export]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const tableId = btn.dataset.export;
+            const type = btn.dataset.type || 'csv';
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            if (type === 'csv') {
+                const csv = buildCsvFromTable(table);
+                downloadFile(csv, `${tableId}.csv`, 'text/csv;charset=utf-8;');
+            } else {
+                const html = table.outerHTML;
+                downloadFile(html, `${tableId}.xls`, 'application/vnd.ms-excel');
+            }
+        });
+    });
 </script>
 {% endblock %}

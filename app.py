@@ -1,5 +1,6 @@
 from datetime import datetime
 import io
+import math
 import sqlite3
 from pathlib import Path
 
@@ -1530,6 +1531,16 @@ def _lineas_pendientes():
     return lineas
 
 
+def _buscar_linea_en_pedido(pedido_id: int, codigo: str):
+    pedido = next((p for p in purchase_orders if p["id"] == pedido_id), None)
+    if not pedido:
+        return None, None
+    linea = next(
+        (l for l in pedido["lineas"] if l["codigo"].lower() == codigo.lower()), None
+    )
+    return pedido, linea
+
+
 def _clave_gaveta(pedido_id: int, codigo: str):
     return (pedido_id, codigo.lower())
 
@@ -1610,10 +1621,44 @@ def _listar_gavetas_activas():
             "codigo": asignacion["codigo"],
             "descripcion": asignacion["descripcion"],
             "unidades": asignacion["unidades"],
+            "clave": _clave_gaveta(asignacion["pedido_id"], asignacion["codigo"]),
         }
         for asignacion in gaveta_asignaciones.values()
     ]
     return sorted(gavetas, key=lambda gaveta: (gaveta["pedido_id"], gaveta["codigo"].lower()))
+
+
+def _asegurar_gaveta_existente(nombre: str):
+    existente = next(
+        (loc for loc in storage_locations if loc["nombre"].lower() == nombre.lower()),
+        None,
+    )
+    if existente:
+        return existente
+
+    nueva_gaveta = {"nombre": nombre, "tipo": "Gaveta", "created_at": datetime.now()}
+    storage_locations.append(nueva_gaveta)
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
+            (nueva_gaveta["nombre"], nueva_gaveta["tipo"], nueva_gaveta["created_at"].isoformat()),
+        )
+    return nueva_gaveta
+
+
+def _actualizar_destino_gaveta(clave, nuevo_nombre: str):
+    asignacion = gaveta_asignaciones.get(clave)
+    if not asignacion:
+        return None
+
+    nueva_gaveta = _asegurar_gaveta_existente(nuevo_nombre)
+    asignacion["gaveta"] = nueva_gaveta
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE gaveta_asignaciones SET gaveta_nombre = ? WHERE pedido_id = ? AND lower(codigo) = ?",
+            (nuevo_nombre, clave[0], clave[1].lower()),
+        )
+    return asignacion
 
 
 def _ajustar_stock_gaveta(asignacion: dict, delta: int):
@@ -1879,7 +1924,16 @@ def lectura_codigos():
     global active_delivery_note_id
     resultado = None
     codigo = ""
+    pendiente_cliente = request.args.get("pendiente_cliente", "").strip()
+    pendiente_codigo = request.args.get("pendiente_codigo", "").strip()
+    pendiente_orden = request.args.get("pendiente_orden", "fecha_desc")
+    pendiente_pagina = request.args.get("pendiente_pagina", type=int, default=1)
+    gaveta_cliente = request.args.get("gaveta_cliente", "").strip()
+    gaveta_codigo = request.args.get("gaveta_codigo", "").strip()
+    gaveta_orden = request.args.get("gaveta_orden", "pedido")
+    gaveta_pagina = request.args.get("gaveta_pagina", type=int, default=1)
     albaran_activo = _buscar_albaran(active_delivery_note_id) if active_delivery_note_id else None
+
     if request.method == "POST":
         accion = request.form.get("accion")
         if accion == "nuevo_albaran":
@@ -1927,6 +1981,55 @@ def lectura_codigos():
                 if registro.get("gaveta"):
                     resultado["gaveta"] = registro["gaveta"]
                     resultado["unidades_gaveta"] = registro.get("unidades_gaveta", 0)
+        elif accion == "ajustar_linea":
+            pedido_id = request.form.get("pedido_id", type=int)
+            codigo_linea = request.form.get("codigo_linea", "").strip()
+            nuevas_recibidas = request.form.get("nuevas_recibidas", type=int)
+            pedido, linea = _buscar_linea_en_pedido(pedido_id, codigo_linea)
+            if not pedido or not linea:
+                flash("No se encontró la línea a ajustar.", "error")
+            else:
+                nuevas_recibidas = max(
+                    0, min(nuevas_recibidas or 0, linea["cantidad_pedida"])
+                )
+                linea["cantidad_recibida"] = nuevas_recibidas
+                linea["cantidad_pendiente"] = max(
+                    linea["cantidad_pedida"] - nuevas_recibidas, 0
+                )
+                _persistir_linea_pedido(pedido_id, linea)
+                flash(
+                    f"Actualizada la recepción del código {linea['codigo']} en el pedido #{pedido_id}.",
+                    "success",
+                )
+        elif accion == "actualizar_gaveta_unidades":
+            pedido_id = request.form.get("pedido_id", type=int)
+            codigo_linea = request.form.get("codigo_linea", "")
+            nuevas_unidades = request.form.get("nuevas_unidades", type=int)
+            clave = _clave_gaveta(pedido_id, codigo_linea)
+            asignacion = gaveta_asignaciones.get(clave)
+            if not asignacion:
+                flash("No se encontró la gaveta seleccionada.", "error")
+            else:
+                nuevas_unidades = max(0, nuevas_unidades or 0)
+                delta = nuevas_unidades - asignacion["unidades"]
+                _actualizar_unidades_gaveta(clave, delta)
+                flash("Unidades actualizadas en la gaveta.", "success")
+        elif accion == "mover_gaveta":
+            pedido_id = request.form.get("pedido_id", type=int)
+            codigo_linea = request.form.get("codigo_linea", "")
+            nueva_gaveta = request.form.get("nueva_gaveta", "").strip()
+            clave = _clave_gaveta(pedido_id, codigo_linea)
+            if not nueva_gaveta:
+                flash("Introduce un nombre de gaveta válido para mover la asignación.", "error")
+            else:
+                asignacion = _actualizar_destino_gaveta(clave, nueva_gaveta)
+                if asignacion:
+                    flash(
+                        f"La gaveta del código {codigo_linea} se movió a {nueva_gaveta}.",
+                        "info",
+                    )
+                else:
+                    flash("No se pudo mover la gaveta solicitada.", "error")
         else:
             codigo = request.form.get("codigo", "").strip()
             if not codigo:
@@ -1989,6 +2092,66 @@ def lectura_codigos():
     numero_sugerido = _generar_numero_albaran()
     lineas_pendientes = _lineas_pendientes()
     gavetas_activas = _listar_gavetas_activas()
+
+    def _aplicar_filtros_registros(registros, filtro_cliente, filtro_codigo):
+        filtrados = registros
+        if filtro_cliente:
+            filtrados = [
+                reg
+                for reg in filtrados
+                if filtro_cliente.lower() in reg.get("cliente", "").lower()
+            ]
+        if filtro_codigo:
+            filtrados = [
+                reg
+                for reg in filtrados
+                if filtro_codigo.lower() in reg.get("codigo", "").lower()
+                or filtro_codigo.lower() in reg.get("descripcion", "").lower()
+            ]
+        return filtrados
+
+    lineas_pendientes = _aplicar_filtros_registros(
+        lineas_pendientes, pendiente_cliente, pendiente_codigo
+    )
+    gavetas_activas = _aplicar_filtros_registros(
+        gavetas_activas, gaveta_cliente, gaveta_codigo
+    )
+
+    ordenes_lineas = {
+        "fecha_desc": (lambda l: l["fecha"], True),
+        "pendientes": (lambda l: l["cantidad_pendiente"], True),
+        "cliente": (lambda l: l["cliente"].lower(), False),
+        "codigo": (lambda l: l["codigo"].lower(), False),
+    }
+    key_lineas, reverse_lineas = ordenes_lineas.get(
+        pendiente_orden, (lambda l: l["fecha"], True)
+    )
+    lineas_pendientes = sorted(lineas_pendientes, key=key_lineas, reverse=reverse_lineas)
+
+    ordenes_gavetas = {
+        "pedido": (lambda g: (g["pedido_id"], g["codigo"].lower()), False),
+        "unidades": (lambda g: g["unidades"], True),
+        "codigo": (lambda g: g["codigo"].lower(), False),
+    }
+    key_gaveta, reverse_gaveta = ordenes_gavetas.get(
+        gaveta_orden, (lambda g: (g["pedido_id"], g["codigo"].lower()), False)
+    )
+    gavetas_activas = sorted(gavetas_activas, key=key_gaveta, reverse=reverse_gaveta)
+
+    def _paginar(items, pagina, tamano=6):
+        total = len(items)
+        total_paginas = max(1, math.ceil(total / tamano))
+        pagina = max(1, min(pagina, total_paginas))
+        inicio = (pagina - 1) * tamano
+        return items[inicio : inicio + tamano], total_paginas, total
+
+    lineas_paginadas, paginas_pendientes, total_lineas = _paginar(
+        lineas_pendientes, pendiente_pagina
+    )
+    gavetas_paginadas, paginas_gavetas, total_gavetas = _paginar(
+        gavetas_activas, gaveta_pagina
+    )
+
     albaranes_disponibles = sorted(
         delivery_notes, key=lambda nota: nota["fecha"], reverse=True
     )
@@ -1996,11 +2159,24 @@ def lectura_codigos():
         "lectura_codigos.html",
         codigo=codigo,
         resultado=resultado,
-        lineas_pendientes=lineas_pendientes,
-        gavetas_activas=gavetas_activas,
+        lineas_pendientes=lineas_paginadas,
+        gavetas_activas=gavetas_paginadas,
         albaran_activo=albaran_activo,
         albaranes=albaranes_disponibles,
         numero_sugerido=numero_sugerido,
+        pendiente_cliente=pendiente_cliente,
+        pendiente_codigo=pendiente_codigo,
+        pendiente_orden=pendiente_orden,
+        pendiente_pagina=pendiente_pagina,
+        paginas_pendientes=paginas_pendientes,
+        total_lineas=total_lineas,
+        gaveta_cliente=gaveta_cliente,
+        gaveta_codigo=gaveta_codigo,
+        gaveta_orden=gaveta_orden,
+        gaveta_pagina=gaveta_pagina,
+        paginas_gavetas=paginas_gavetas,
+        total_gavetas=total_gavetas,
+        filtros_query=request.args,
     )
 
 
