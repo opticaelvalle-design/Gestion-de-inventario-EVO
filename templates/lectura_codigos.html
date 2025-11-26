@@ -44,6 +44,67 @@
         color: #273c75;
         font-weight: 700;
     }
+
+    .surface-grid {
+        grid-template-columns: 280px 1fr 320px;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1100px) {
+        .surface-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .lecturas-recientes {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        padding: 1.25rem;
+        border: 1px solid #e1e7f5;
+        display: grid;
+        gap: 0.75rem;
+        height: fit-content;
+    }
+
+    .lecturas-recientes h3 {
+        margin: 0;
+        color: #1b2b58;
+    }
+
+    .lecturas-recientes__lista {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 0.65rem;
+    }
+
+    .lecturas-recientes__item {
+        display: grid;
+        grid-template-columns: 80px 1fr;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.55rem 0.65rem;
+        background: #f8fbff;
+        border-radius: 10px;
+        border: 1px solid #e8eef8;
+    }
+
+    .lecturas-recientes__hora {
+        font-weight: 700;
+        color: #273c75;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .lecturas-recientes__codigo {
+        font-weight: 700;
+        color: #1b2b58;
+    }
+
+    .lecturas-recientes__detalle {
+        color: #6c7a99;
+    }
 </style>
 {% endblock %}
 
@@ -223,7 +284,7 @@
                 <div class="pagination" aria-label="Paginación líneas pendientes">
                     <span class="text-muted">{{ total_lineas }} resultados</span>
                     {% for pagina in range(1, paginas_pendientes + 1) %}
-                        <a class="button-link pill {% if pagina == pendiente_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', pendiente_pagina=pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden, gaveta_pagina=gaveta_pagina, gaveta_cliente=gaveta_cliente, gaveta_codigo=gaveta_codigo, gaveta_orden=gaveta_orden) }}">{{ pagina }}</a>
+                        <a class="button-link pill {% if pagina == pendiente_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', pendiente_pagina=pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden, gaveta_pagina=gaveta_pagina, gaveta_nombre=gaveta_nombre, gaveta_orden=gaveta_orden) }}">{{ pagina }}</a>
                     {% endfor %}
                 </div>
             {% else %}
@@ -237,7 +298,7 @@
             <div class="table-toolbar">
                 <div>
                     <h2 id="gavetas-heading" class="section-title">Gavetas activas</h2>
-                    <p class="text-muted">Gestiona las unidades y mueve el destino sin salir de la vista.</p>
+                    <p class="text-muted">Resumen de unidades por gaveta activa.</p>
                 </div>
                 <div class="table-actions">
                     <button type="button" class="btn-secondary" data-export="gavetas-table" data-type="csv">Exportar CSV</button>
@@ -245,14 +306,11 @@
                 </div>
             </div>
             <form method="get" class="filters-row" aria-label="Filtros de gavetas activas">
-                <label for="gaveta_cliente">Cliente</label>
-                <input type="text" name="gaveta_cliente" id="gaveta_cliente" value="{{ gaveta_cliente }}" class="inline-input" />
-                <label for="gaveta_codigo">Código</label>
-                <input type="text" name="gaveta_codigo" id="gaveta_codigo" value="{{ gaveta_codigo }}" class="inline-input" />
+                <label for="gaveta_nombre">Gaveta</label>
+                <input type="text" name="gaveta_nombre" id="gaveta_nombre" value="{{ gaveta_nombre }}" class="inline-input" />
                 <label for="gaveta_orden">Orden</label>
                 <select name="gaveta_orden" id="gaveta_orden" class="inline-input">
-                    <option value="pedido" {% if gaveta_orden == 'pedido' %}selected{% endif %}>Pedido</option>
-                    <option value="codigo" {% if gaveta_orden == 'codigo' %}selected{% endif %}>Código</option>
+                    <option value="nombre" {% if gaveta_orden == 'nombre' %}selected{% endif %}>Nombre</option>
                     <option value="unidades" {% if gaveta_orden == 'unidades' %}selected{% endif %}>Unidades</option>
                 </select>
                 <input type="hidden" name="gaveta_pagina" value="1" />
@@ -264,41 +322,14 @@
                         <thead>
                             <tr>
                                 <th>Gaveta</th>
-                                <th>Pedido</th>
-                                <th>Cliente</th>
-                                <th>Código</th>
-                                <th>Descripción</th>
-                                <th>Unidades</th>
-                                <th>Acciones</th>
+                                <th>Total de unidades</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for gaveta in gavetas_activas %}
                                 <tr>
                                     <td>{{ gaveta.nombre }}</td>
-                                    <td>#{{ gaveta.pedido_id }}</td>
-                                    <td>{{ gaveta.cliente }}</td>
-                                    <td>{{ gaveta.codigo }}</td>
-                                    <td>{{ gaveta.descripcion }}</td>
                                     <td>{{ gaveta.unidades }}</td>
-                                    <td class="table-actions">
-                                        <form method="post" class="table-actions">
-                                            <input type="hidden" name="accion" value="actualizar_gaveta_unidades" />
-                                            <input type="hidden" name="pedido_id" value="{{ gaveta.pedido_id }}" />
-                                            <input type="hidden" name="codigo_linea" value="{{ gaveta.codigo }}" />
-                                            <label for="gaveta-unidades-{{ loop.index }}" class="sr-only">Unidades en gaveta</label>
-                                            <input type="number" class="inline-input" id="gaveta-unidades-{{ loop.index }}" name="nuevas_unidades" min="0" value="{{ gaveta.unidades }}" />
-                                            <button type="submit" class="btn-success">Ajustar</button>
-                                        </form>
-                                        <form method="post" class="table-actions">
-                                            <input type="hidden" name="accion" value="mover_gaveta" />
-                                            <input type="hidden" name="pedido_id" value="{{ gaveta.pedido_id }}" />
-                                            <input type="hidden" name="codigo_linea" value="{{ gaveta.codigo }}" />
-                                            <label for="mover-{{ loop.index }}" class="sr-only">Nueva gaveta</label>
-                                            <input type="text" class="inline-input" id="mover-{{ loop.index }}" name="nueva_gaveta" placeholder="Ej. Gaveta B3" />
-                                            <button type="submit" class="btn-warning">Mover</button>
-                                        </form>
-                                    </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
@@ -307,7 +338,7 @@
                 <div class="pagination" aria-label="Paginación de gavetas activas">
                     <span class="text-muted">{{ total_gavetas }} gavetas</span>
                     {% for pagina in range(1, paginas_gavetas + 1) %}
-                        <a class="button-link pill {% if pagina == gaveta_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', gaveta_pagina=pagina, gaveta_cliente=gaveta_cliente, gaveta_codigo=gaveta_codigo, gaveta_orden=gaveta_orden, pendiente_pagina=pendiente_pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden) }}">{{ pagina }}</a>
+                        <a class="button-link pill {% if pagina == gaveta_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', gaveta_pagina=pagina, gaveta_nombre=gaveta_nombre, gaveta_orden=gaveta_orden, pendiente_pagina=pendiente_pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden) }}">{{ pagina }}</a>
                     {% endfor %}
                 </div>
             {% else %}
@@ -317,6 +348,30 @@
             {% endif %}
         </section>
     </section>
+
+    <aside class="lecturas-recientes" aria-label="Últimas lecturas registradas">
+        <div class="section-header" style="align-items: baseline;">
+            <div>
+                <h3 class="section-title">Últimas lecturas</h3>
+                <p class="text-muted">Se muestran las 20 lecturas más recientes.</p>
+            </div>
+        </div>
+        {% if lecturas_recientes %}
+            <ol class="lecturas-recientes__lista">
+                {% for lectura in lecturas_recientes|reverse %}
+                    <li class="lecturas-recientes__item">
+                        <div class="lecturas-recientes__hora">{{ lectura.timestamp.strftime('%H:%M:%S') }}</div>
+                        <div>
+                            <div class="lecturas-recientes__codigo">{{ lectura.codigo }}</div>
+                            <div class="lecturas-recientes__detalle">Pedido #{{ lectura.pedido_id }} · Gaveta {{ lectura.gaveta }}</div>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ol>
+        {% else %}
+            <p class="text-muted">Aún no hay lecturas registradas en esta sesión.</p>
+        {% endif %}
+    </aside>
 </div>
 
 <div id="modal-crear-albaran" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-albaran-titulo">

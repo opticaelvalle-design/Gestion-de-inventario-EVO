@@ -23,6 +23,8 @@ app.secret_key = "cambia-esta-clave"  # Necesaria para mostrar mensajes flash
 
 # Historial en memoria para permitir deshacer la última lectura de código
 lecturas_historial = []
+# Registro de las lecturas recientes para mostrar en la interfaz
+lecturas_recientes = []
 
 # Datos iniciales para la demostración de funcionalidades
 INITIAL_STORAGE_LOCATIONS = [
@@ -1624,19 +1626,13 @@ def _actualizar_unidades_gaveta(clave, delta: int):
 
 
 def _listar_gavetas_activas():
-    gavetas = [
-        {
-            "nombre": asignacion["gaveta"]["nombre"],
-            "pedido_id": asignacion["pedido_id"],
-            "cliente": asignacion["cliente"],
-            "codigo": asignacion["codigo"],
-            "descripcion": asignacion["descripcion"],
-            "unidades": asignacion["unidades"],
-            "clave": _clave_gaveta(asignacion["pedido_id"], asignacion["codigo"]),
-        }
-        for asignacion in gaveta_asignaciones.values()
-    ]
-    return sorted(gavetas, key=lambda gaveta: (gaveta["pedido_id"], gaveta["codigo"].lower()))
+    gavetas = {}
+    for asignacion in gaveta_asignaciones.values():
+        nombre = asignacion["gaveta"]["nombre"]
+        registro = gavetas.setdefault(nombre, {"nombre": nombre, "unidades": 0})
+        registro["unidades"] += asignacion["unidades"]
+
+    return sorted(gavetas.values(), key=lambda gaveta: gaveta["nombre"].lower())
 
 
 def _asegurar_gaveta_existente(nombre: str):
@@ -1942,9 +1938,8 @@ def lectura_codigos():
     pendiente_codigo = request.args.get("pendiente_codigo", "").strip()
     pendiente_orden = request.args.get("pendiente_orden", "fecha_desc")
     pendiente_pagina = request.args.get("pendiente_pagina", type=int, default=1)
-    gaveta_cliente = request.args.get("gaveta_cliente", "").strip()
-    gaveta_codigo = request.args.get("gaveta_codigo", "").strip()
-    gaveta_orden = request.args.get("gaveta_orden", "pedido")
+    gaveta_nombre = request.args.get("gaveta_nombre", "").strip()
+    gaveta_orden = request.args.get("gaveta_orden", "nombre")
     gaveta_pagina = request.args.get("gaveta_pagina", type=int, default=1)
     albaran_activo = _buscar_albaran(active_delivery_note_id) if active_delivery_note_id else None
 
@@ -1995,6 +1990,14 @@ def lectura_codigos():
                 if registro.get("gaveta"):
                     resultado["gaveta"] = registro["gaveta"]
                     resultado["unidades_gaveta"] = registro.get("unidades_gaveta", 0)
+                if lecturas_recientes:
+                    ultima = lecturas_recientes[-1]
+                    if (
+                        ultima.get("pedido_id") == registro["pedido_id"]
+                        and ultima.get("codigo", "").lower()
+                        == registro["linea"]["codigo"].lower()
+                    ):
+                        lecturas_recientes.pop()
         elif accion == "ajustar_linea":
             pedido_id = request.form.get("pedido_id", type=int)
             codigo_linea = request.form.get("codigo_linea", "").strip()
@@ -2091,6 +2094,16 @@ def lectura_codigos():
                             "gaveta_key": gaveta_key,
                         }
                     )
+                    lecturas_recientes.append(
+                        {
+                            "timestamp": datetime.now(),
+                            "codigo": linea["codigo"],
+                            "pedido_id": pedido["id"],
+                            "gaveta": asignacion["gaveta"]["nombre"],
+                        }
+                    )
+                    if len(lecturas_recientes) > 20:
+                        del lecturas_recientes[:-20]
                     if completado:
                         flash(
                             f"Se completó la línea del código {linea['codigo']} en el pedido #{pedido['id']}.",
@@ -2127,9 +2140,12 @@ def lectura_codigos():
     lineas_pendientes = _aplicar_filtros_registros(
         lineas_pendientes, pendiente_cliente, pendiente_codigo
     )
-    gavetas_activas = _aplicar_filtros_registros(
-        gavetas_activas, gaveta_cliente, gaveta_codigo
-    )
+    if gaveta_nombre:
+        gavetas_activas = [
+            gaveta
+            for gaveta in gavetas_activas
+            if gaveta_nombre.lower() in gaveta["nombre"].lower()
+        ]
 
     ordenes_lineas = {
         "fecha_desc": (lambda l: l["fecha"], True),
@@ -2143,12 +2159,11 @@ def lectura_codigos():
     lineas_pendientes = sorted(lineas_pendientes, key=key_lineas, reverse=reverse_lineas)
 
     ordenes_gavetas = {
-        "pedido": (lambda g: (g["pedido_id"], g["codigo"].lower()), False),
+        "nombre": (lambda g: g["nombre"].lower(), False),
         "unidades": (lambda g: g["unidades"], True),
-        "codigo": (lambda g: g["codigo"].lower(), False),
     }
     key_gaveta, reverse_gaveta = ordenes_gavetas.get(
-        gaveta_orden, (lambda g: (g["pedido_id"], g["codigo"].lower()), False)
+        gaveta_orden, (lambda g: g["nombre"].lower(), False)
     )
     gavetas_activas = sorted(gavetas_activas, key=key_gaveta, reverse=reverse_gaveta)
 
@@ -2184,12 +2199,12 @@ def lectura_codigos():
         pendiente_pagina=pendiente_pagina,
         paginas_pendientes=paginas_pendientes,
         total_lineas=total_lineas,
-        gaveta_cliente=gaveta_cliente,
-        gaveta_codigo=gaveta_codigo,
+        gaveta_nombre=gaveta_nombre,
         gaveta_orden=gaveta_orden,
         gaveta_pagina=gaveta_pagina,
         paginas_gavetas=paginas_gavetas,
         total_gavetas=total_gavetas,
+        lecturas_recientes=lecturas_recientes,
         filtros_query=request.args,
     )
 
