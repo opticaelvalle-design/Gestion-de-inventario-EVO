@@ -1569,15 +1569,22 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
         gaveta = asignacion_existente["gaveta"]
         gaveta_creada = False
     else:
-        nombre = _generar_nombre_gaveta()
-        gaveta = {"nombre": nombre, "tipo": "Gaveta", "created_at": datetime.now()}
-        storage_locations.append(gaveta)
-        with get_connection() as conn:
-            conn.execute(
-                "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
-                (gaveta["nombre"], gaveta["tipo"], gaveta["created_at"].isoformat()),
-            )
-        gaveta_creada = True
+        gaveta_existente = next(
+            (
+                ubicacion
+                for ubicacion in storage_locations
+                if ubicacion["tipo"].lower() == "gaveta"
+                and ubicacion["nombre"].lower() == pedido["nombre"].lower()
+            ),
+            None,
+        )
+
+        if gaveta_existente:
+            gaveta = gaveta_existente
+            gaveta_creada = False
+        else:
+            gaveta = _asegurar_gaveta_existente(pedido["nombre"])
+            gaveta_creada = True
 
     fecha_creacion_gaveta = (
         asignacion_existente["gaveta"]["created_at"] if asignacion_existente else gaveta["created_at"]
