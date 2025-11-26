@@ -1,74 +1,84 @@
 {% extends "base.html" %}
 {% block title %}Albaranes de entrada · Gestión de Inventario EVO{% endblock %}
 {% block content %}
-<section class="card" style="gap: 1rem;">
-    <div>
-        <h2>Albaranes de entrada</h2>
-        <p>Consulta el histórico de albaranes que has ido recibiendo y accede a su detalle.</p>
-    </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
-        <div class="stat-card">
-            <span>Total albaranes</span>
-            <strong>{{ totales_generales.total_albaranes }}</strong>
-        </div>
-        <div class="stat-card">
-            <span>Unidades recibidas</span>
-            <strong>{{ totales_generales.unidades_recibidas }}</strong>
-        </div>
-        <div class="stat-card">
-            <span>Valor PVO acumulado</span>
-            <strong>{{ '€{:.2f}'.format(totales_generales.valor_pvo) }}</strong>
-        </div>
-        <div class="stat-card">
-            <span>Valor PVP acumulado</span>
-            <strong>{{ '€{:.2f}'.format(totales_generales.valor_pvp) }}</strong>
-        </div>
-    </div>
-</section>
+<div class="page-shell">
+    <div class="stack">
+        <section class="card" style="gap: 1rem;">
+            <div class="page-header">
+                <div>
+                    <p class="eyebrow">Recepción</p>
+                    <h2 style="margin: 0; color: var(--blue-700);">Albaranes de entrada</h2>
+                    <p class="muted" style="margin: 0;">Consulta el histórico de albaranes recibidos con accesos rápidos al detalle.</p>
+                </div>
+                <div class="pill-group">
+                    <a class="btn" href="{{ url_for('lectura_codigos') }}">Registrar lectura</a>
+                </div>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span>Total albaranes</span>
+                    <strong>{{ totales_generales.total_albaranes }}</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Unidades recibidas</span>
+                    <strong>{{ totales_generales.unidades_recibidas }}</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Valor PVO acumulado</span>
+                    <strong>{{ '€{:.2f}'.format(totales_generales.valor_pvo) }}</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Valor PVP acumulado</span>
+                    <strong>{{ '€{:.2f}'.format(totales_generales.valor_pvp) }}</strong>
+                </div>
+            </div>
+        </section>
 
-{% if albaranes %}
-    <div style="overflow-x: auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Número</th>
-                    <th>Fecha</th>
-                    <th>Proveedor</th>
-                    <th>Fábrica</th>
-                    <th>Líneas</th>
-                    <th>Unidades</th>
-                    <th>Valor PVO</th>
-                    <th>Valor PVP</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for albaran in albaranes %}
-                    <tr>
-                        <td>{{ albaran.numero }}</td>
-                        <td>{{ albaran.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
-                        <td>{{ albaran.proveedor }}</td>
-                        <td>{{ albaran.fabrica }}</td>
-                        <td>{{ albaran.lineas | length }}</td>
-                        <td>{{ albaran.total_unidades }}</td>
-                        <td>{{ '€{:.2f}'.format(albaran.total_pvo) }}</td>
-                        <td>{{ '€{:.2f}'.format(albaran.total_pvp) }}</td>
-                        <td>
-                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                <a class="button-link" style="padding: 0.4rem 0.65rem;" href="{{ url_for('albaran_detalle', albaran_id=albaran.id) }}">Ver detalle</a>
-                                <form method="post" action="{{ url_for('eliminar_albaran', albaran_id=albaran.id) }}" onsubmit="return confirm('¿Seguro que quieres eliminar el albarán {{ albaran.numero }}?');">
-                                    <button type="submit" class="button-link" style="background-color: #b3261e; color: white; border: none; padding: 0.4rem 0.65rem; border-radius: 6px; cursor: pointer;">Eliminar</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        {% if albaranes %}
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Fecha</th>
+                            <th>Proveedor</th>
+                            <th>Fábrica</th>
+                            <th>Líneas</th>
+                            <th>Unidades</th>
+                            <th>Valor PVO</th>
+                            <th>Valor PVP</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for albaran in albaranes %}
+                            <tr>
+                                <td>{{ albaran.numero }}</td>
+                                <td>{{ albaran.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>{{ albaran.proveedor }}</td>
+                                <td>{{ albaran.fabrica }}</td>
+                                <td>{{ albaran.lineas | length }}</td>
+                                <td>{{ albaran.total_unidades }}</td>
+                                <td>{{ '€{:.2f}'.format(albaran.total_pvo) }}</td>
+                                <td>{{ '€{:.2f}'.format(albaran.total_pvp) }}</td>
+                                <td>
+                                    <div class="pill-group">
+                                        <a class="btn-secondary" href="{{ url_for('albaran_detalle', albaran_id=albaran.id) }}">Ver detalle</a>
+                                        <form method="post" action="{{ url_for('eliminar_albaran', albaran_id=albaran.id) }}" onsubmit="return confirm('¿Seguro que quieres eliminar el albarán {{ albaran.numero }}?');">
+                                            <button type="submit" class="btn-danger">Eliminar</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <p>Todavía no se han registrado albaranes de entrada.</p>
+            </div>
+        {% endif %}
     </div>
-{% else %}
-    <div class="empty-state">
-        <p>Todavía no se han registrado albaranes de entrada.</p>
-    </div>
-{% endif %}
+</div>
 {% endblock %}
