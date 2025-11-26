@@ -51,7 +51,6 @@ Gestion-de-inventario-EVO/
 │   ├── exportar_informes.html
 │   ├── index.html
 │   ├── lectura_codigos.html
-│   ├── mostrar_stock.html
 │   ├── panel_control.html
 │   ├── pedido_detalle.html
 │   ├── pedidos.html
