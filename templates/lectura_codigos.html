@@ -171,7 +171,7 @@
             <form method="post" class="stack" aria-label="Formulario de lectura">
                 <div>
                     <label for="codigo">Código de barras</label>
-                    <input type="text" name="codigo" id="codigo" value="{{ codigo }}" placeholder="Ej. ABC123" autofocus autocomplete="off" />
+                    <input type="text" name="codigo" id="codigo" value="{{ codigo }}" placeholder="Introduce el código" autofocus autocomplete="off" />
                 </div>
                 <input type="hidden" name="accion" value="leer" />
                 <div class="table-actions">
@@ -319,7 +319,7 @@
         <form method="post" id="form-crear-albaran" class="stack">
             <div class="stack">
                 <label for="numero_albaran">Nombre o número</label>
-                <input type="text" id="numero_albaran" name="numero" value="{{ numero_sugerido }}" placeholder="Ej. {{ numero_sugerido }}" />
+                <input type="text" id="numero_albaran" name="numero" value="{{ numero_sugerido }}" placeholder="Número de albarán" />
             </div>
             <div class="stack">
                 <label for="proveedor_albaran">Proveedor</label>
