@@ -46,9 +46,9 @@
     }
 
     .surface-grid {
-        grid-template-columns: 280px 1fr 320px;
+        grid-template-columns: 280px 1fr;
         gap: 1.5rem;
-        max-width: 1400px;
+        max-width: 1100px;
         margin: 0 auto;
         align-items: start;
     }
@@ -65,55 +65,6 @@
         top: auto;
     }
 
-    .lecturas-recientes {
-        background: #fff;
-        border-radius: 14px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-        padding: 1.25rem;
-        border: 1px solid #e1e7f5;
-        display: grid;
-        gap: 0.75rem;
-        height: fit-content;
-    }
-
-    .lecturas-recientes h3 {
-        margin: 0;
-        color: #1b2b58;
-    }
-
-    .lecturas-recientes__lista {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: grid;
-        gap: 0.65rem;
-    }
-
-    .lecturas-recientes__item {
-        display: grid;
-        grid-template-columns: 80px 1fr;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.55rem 0.65rem;
-        background: #f8fbff;
-        border-radius: 10px;
-        border: 1px solid #e8eef8;
-    }
-
-    .lecturas-recientes__hora {
-        font-weight: 700;
-        color: #273c75;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .lecturas-recientes__codigo {
-        font-weight: 700;
-        color: #1b2b58;
-    }
-
-    .lecturas-recientes__detalle {
-        color: #6c7a99;
-    }
 </style>
 {% endblock %}
 
@@ -357,30 +308,6 @@
             {% endif %}
         </section>
     </section>
-
-    <aside class="lecturas-recientes" aria-label="Últimas lecturas registradas">
-        <div class="section-header" style="align-items: baseline;">
-            <div>
-                <h3 class="section-title">Últimas lecturas</h3>
-                <p class="text-muted">Se muestran las 20 lecturas más recientes.</p>
-            </div>
-        </div>
-        {% if lecturas_recientes %}
-            <ol class="lecturas-recientes__lista">
-                {% for lectura in lecturas_recientes|reverse %}
-                    <li class="lecturas-recientes__item">
-                        <div class="lecturas-recientes__hora">{{ lectura.timestamp.strftime('%H:%M:%S') }}</div>
-                        <div>
-                            <div class="lecturas-recientes__codigo">{{ lectura.codigo }}</div>
-                            <div class="lecturas-recientes__detalle">Pedido #{{ lectura.pedido_id }} · Gaveta {{ lectura.gaveta }}</div>
-                        </div>
-                    </li>
-                {% endfor %}
-            </ol>
-        {% else %}
-            <p class="text-muted">Aún no hay lecturas registradas en esta sesión.</p>
-        {% endif %}
-    </aside>
 </div>
 
 <div id="modal-crear-albaran" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-albaran-titulo">

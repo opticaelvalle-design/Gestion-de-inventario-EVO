@@ -548,6 +548,7 @@
     <nav>
         <a href="{{ url_for('home') }}" class="{% if request.path == url_for('home') %}active{% endif %}">Inicio</a>
         <a href="{{ url_for('lectura_codigos') }}" class="{% if request.path == url_for('lectura_codigos') %}active{% endif %}">Lectura de códigos</a>
+        <a href="{{ url_for('historial_lecturas') }}" class="{% if request.path == url_for('historial_lecturas') %}active{% endif %}">Historial de lecturas</a>
         <a href="{{ url_for('albaranes') }}" class="{% if request.path.startswith(url_for('albaranes')) %}active{% endif %}">Albaranes de entrada</a>
         <a href="{{ url_for('crear_gavetas') }}" class="{% if request.path == url_for('crear_gavetas') %}active{% endif %}">Crear gavetas, baldas, cajones</a>
         <a href="{{ url_for('pedidos') }}" class="{% if request.path.startswith(url_for('pedidos')) %}active{% endif %}">Pedidos</a>

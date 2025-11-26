@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Historial de lecturas · Gestión de Inventario EVO{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div>
+        <h2>Historial de lecturas</h2>
+        <p class="text-muted">Consulta todo lo registrado, con filtros rápidos por cliente, código o acción.</p>
+    </div>
+    <div class="meta">
+        <strong>{{ total_registros }}</strong>
+        <div class="text-muted">lecturas registradas</div>
+    </div>
+</div>
+
+<form method="get" class="filters-row" aria-label="Filtros del historial de lecturas">
+    <label for="filtro_cliente">Cliente</label>
+    <input type="text" id="filtro_cliente" name="cliente" value="{{ filtro_cliente }}" class="inline-input" />
+    <label for="filtro_codigo">Código o descripción</label>
+    <input type="text" id="filtro_codigo" name="codigo" value="{{ filtro_codigo }}" class="inline-input" />
+    <label for="filtro_pedido">Pedido</label>
+    <input type="number" id="filtro_pedido" name="pedido_id" value="{{ filtro_pedido or '' }}" class="inline-input" />
+    <label for="filtro_accion">Acción</label>
+    <select id="filtro_accion" name="accion" class="inline-input">
+        <option value="" {% if not filtro_accion %}selected{% endif %}>Todas</option>
+        <option value="lectura" {% if filtro_accion == 'lectura' %}selected{% endif %}>Lecturas</option>
+        <option value="deshacer" {% if filtro_accion == 'deshacer' %}selected{% endif %}>Reversiones</option>
+    </select>
+    <button type="submit" class="btn-secondary">Filtrar</button>
+</form>
+
+{% if registros %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha y hora</th>
+                    <th>Acción</th>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th>Pedido</th>
+                    <th>Cliente</th>
+                    <th>Gaveta</th>
+                    <th>Albarán</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for registro in registros %}
+                    <tr>
+                        <td>{{ registro.timestamp.strftime('%d/%m/%Y %H:%M:%S') if registro.timestamp else '-' }}</td>
+                        <td>
+                            {% if registro.accion == 'deshacer' %}
+                                <span class="badge-contrast" style="background:#ffe8e6; color:#c23616;">Revertido</span>
+                            {% else %}
+                                <span class="badge-contrast" style="background:#eaf7ef; color:#1b8f45;">Leído</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ registro.codigo }}</td>
+                        <td>{{ registro.descripcion }}</td>
+                        <td>#{{ registro.pedido_id }}</td>
+                        <td>{{ registro.cliente }}</td>
+                        <td>{{ registro.gaveta or '—' }}</td>
+                        <td>{{ registro.albaran or '—' }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="pagination" aria-label="Paginación del historial de lecturas">
+        <span class="text-muted">{{ total_registros }} resultados</span>
+        {% for pagina_num in range(1, total_paginas + 1) %}
+            <a class="button-link pill {% if pagina_num == pagina %}badge-contrast{% endif %}"
+               href="{{ url_for('historial_lecturas', pagina=pagina_num, cliente=filtro_cliente, codigo=filtro_codigo, accion=filtro_accion, pedido_id=filtro_pedido) }}">{{ pagina_num }}</a>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>Todavía no hay lecturas registradas.</p>
+    </div>
+{% endif %}
+{% endblock %}

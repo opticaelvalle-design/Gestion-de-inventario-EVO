@@ -23,8 +23,8 @@ app.secret_key = "cambia-esta-clave"  # Necesaria para mostrar mensajes flash
 
 # Historial en memoria para permitir deshacer la última lectura de código
 lecturas_historial = []
-# Registro de las lecturas recientes para mostrar en la interfaz
-lecturas_recientes = []
+# Registro cronológico de todas las lecturas realizadas
+lecturas_registradas = []
 
 # Datos iniciales para la demostración de funcionalidades
 INITIAL_STORAGE_LOCATIONS = [
@@ -1929,6 +1929,14 @@ def _deshacer_ultima_lectura():
     return registro
 
 
+def _paginar(items, pagina, tamano=6):
+    total = len(items)
+    total_paginas = max(1, math.ceil(total / tamano))
+    pagina = max(1, min(pagina, total_paginas))
+    inicio = (pagina - 1) * tamano
+    return items[inicio : inicio + tamano], total_paginas, total
+
+
 @app.route("/lectura-codigos", methods=["GET", "POST"])
 def lectura_codigos():
     global active_delivery_note_id
@@ -1990,14 +1998,17 @@ def lectura_codigos():
                 if registro.get("gaveta"):
                     resultado["gaveta"] = registro["gaveta"]
                     resultado["unidades_gaveta"] = registro.get("unidades_gaveta", 0)
-                if lecturas_recientes:
-                    ultima = lecturas_recientes[-1]
-                    if (
-                        ultima.get("pedido_id") == registro["pedido_id"]
-                        and ultima.get("codigo", "").lower()
-                        == registro["linea"]["codigo"].lower()
-                    ):
-                        lecturas_recientes.pop()
+                lecturas_registradas.append(
+                    {
+                        "timestamp": datetime.now(),
+                        "pedido_id": registro["pedido_id"],
+                        "cliente": registro["cliente"],
+                        "codigo": registro["linea"]["codigo"],
+                        "descripcion": registro["linea"].get("descripcion", ""),
+                        "gaveta": registro.get("gaveta"),
+                        "accion": "deshacer",
+                    }
+                )
         elif accion == "ajustar_linea":
             pedido_id = request.form.get("pedido_id", type=int)
             codigo_linea = request.form.get("codigo_linea", "").strip()
@@ -2094,16 +2105,18 @@ def lectura_codigos():
                             "gaveta_key": gaveta_key,
                         }
                     )
-                    lecturas_recientes.append(
+                    lecturas_registradas.append(
                         {
                             "timestamp": datetime.now(),
-                            "codigo": linea["codigo"],
                             "pedido_id": pedido["id"],
+                            "cliente": pedido["cliente"],
+                            "codigo": linea["codigo"],
+                            "descripcion": linea.get("descripcion", ""),
                             "gaveta": asignacion["gaveta"]["nombre"],
+                            "albaran": albaran_activo["numero"] if albaran_activo else None,
+                            "accion": "lectura",
                         }
                     )
-                    if len(lecturas_recientes) > 20:
-                        del lecturas_recientes[:-20]
                     if completado:
                         flash(
                             f"Se completó la línea del código {linea['codigo']} en el pedido #{pedido['id']}.",
@@ -2167,13 +2180,6 @@ def lectura_codigos():
     )
     gavetas_activas = sorted(gavetas_activas, key=key_gaveta, reverse=reverse_gaveta)
 
-    def _paginar(items, pagina, tamano=6):
-        total = len(items)
-        total_paginas = max(1, math.ceil(total / tamano))
-        pagina = max(1, min(pagina, total_paginas))
-        inicio = (pagina - 1) * tamano
-        return items[inicio : inicio + tamano], total_paginas, total
-
     lineas_paginadas, paginas_pendientes, total_lineas = _paginar(
         lineas_pendientes, pendiente_pagina
     )
@@ -2204,8 +2210,63 @@ def lectura_codigos():
         gaveta_pagina=gaveta_pagina,
         paginas_gavetas=paginas_gavetas,
         total_gavetas=total_gavetas,
-        lecturas_recientes=lecturas_recientes,
         filtros_query=request.args,
+    )
+
+
+@app.route("/historial-lecturas")
+def historial_lecturas():
+    filtro_cliente = request.args.get("cliente", "").strip()
+    filtro_codigo = request.args.get("codigo", "").strip()
+    filtro_accion = request.args.get("accion", "").strip().lower()
+    filtro_pedido = request.args.get("pedido_id", type=int)
+    pagina = request.args.get("pagina", type=int, default=1)
+
+    registros = list(lecturas_registradas)
+
+    if filtro_cliente:
+        registros = [
+            reg
+            for reg in registros
+            if filtro_cliente.lower() in reg.get("cliente", "").lower()
+        ]
+
+    if filtro_codigo:
+        registros = [
+            reg
+            for reg in registros
+            if filtro_codigo.lower() in reg.get("codigo", "").lower()
+            or filtro_codigo.lower() in reg.get("descripcion", "").lower()
+        ]
+
+    if filtro_accion in {"lectura", "deshacer"}:
+        registros = [reg for reg in registros if reg.get("accion") == filtro_accion]
+
+    if filtro_pedido:
+        registros = [
+            reg for reg in registros if reg.get("pedido_id") == filtro_pedido
+        ]
+
+    registros = sorted(
+        registros,
+        key=lambda reg: reg.get("timestamp") or datetime.min,
+        reverse=True,
+    )
+
+    registros_paginados, total_paginas, total_registros = _paginar(
+        registros, pagina, tamano=15
+    )
+
+    return render_template(
+        "historial_lecturas.html",
+        registros=registros_paginados,
+        pagina=pagina,
+        total_paginas=total_paginas,
+        total_registros=total_registros,
+        filtro_cliente=filtro_cliente,
+        filtro_codigo=filtro_codigo,
+        filtro_accion=filtro_accion,
+        filtro_pedido=filtro_pedido,
     )
 
 
