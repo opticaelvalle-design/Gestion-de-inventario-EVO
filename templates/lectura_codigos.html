@@ -44,6 +44,27 @@
         color: #273c75;
         font-weight: 700;
     }
+
+    .surface-grid {
+        grid-template-columns: 280px 1fr;
+        gap: 1.5rem;
+        max-width: 1100px;
+        margin: 0 auto;
+        align-items: start;
+    }
+
+    @media (max-width: 1100px) {
+        .surface-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Mantener el panel de albarán en posición fija dentro del flujo y evitar el efecto sticky */
+    .sidebar {
+        position: static;
+        top: auto;
+    }
+
 </style>
 {% endblock %}
 
@@ -223,7 +244,7 @@
                 <div class="pagination" aria-label="Paginación líneas pendientes">
                     <span class="text-muted">{{ total_lineas }} resultados</span>
                     {% for pagina in range(1, paginas_pendientes + 1) %}
-                        <a class="button-link pill {% if pagina == pendiente_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', pendiente_pagina=pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden, gaveta_pagina=gaveta_pagina, gaveta_cliente=gaveta_cliente, gaveta_codigo=gaveta_codigo, gaveta_orden=gaveta_orden) }}">{{ pagina }}</a>
+                        <a class="button-link pill {% if pagina == pendiente_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', pendiente_pagina=pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden, gaveta_pagina=gaveta_pagina, gaveta_nombre=gaveta_nombre, gaveta_orden=gaveta_orden) }}">{{ pagina }}</a>
                     {% endfor %}
                 </div>
             {% else %}
@@ -237,7 +258,7 @@
             <div class="table-toolbar">
                 <div>
                     <h2 id="gavetas-heading" class="section-title">Gavetas activas</h2>
-                    <p class="text-muted">Gestiona las unidades y mueve el destino sin salir de la vista.</p>
+                    <p class="text-muted">Resumen de unidades por gaveta activa.</p>
                 </div>
                 <div class="table-actions">
                     <button type="button" class="btn-secondary" data-export="gavetas-table" data-type="csv">Exportar CSV</button>
@@ -245,14 +266,11 @@
                 </div>
             </div>
             <form method="get" class="filters-row" aria-label="Filtros de gavetas activas">
-                <label for="gaveta_cliente">Cliente</label>
-                <input type="text" name="gaveta_cliente" id="gaveta_cliente" value="{{ gaveta_cliente }}" class="inline-input" />
-                <label for="gaveta_codigo">Código</label>
-                <input type="text" name="gaveta_codigo" id="gaveta_codigo" value="{{ gaveta_codigo }}" class="inline-input" />
+                <label for="gaveta_nombre">Gaveta</label>
+                <input type="text" name="gaveta_nombre" id="gaveta_nombre" value="{{ gaveta_nombre }}" class="inline-input" />
                 <label for="gaveta_orden">Orden</label>
                 <select name="gaveta_orden" id="gaveta_orden" class="inline-input">
-                    <option value="pedido" {% if gaveta_orden == 'pedido' %}selected{% endif %}>Pedido</option>
-                    <option value="codigo" {% if gaveta_orden == 'codigo' %}selected{% endif %}>Código</option>
+                    <option value="nombre" {% if gaveta_orden == 'nombre' %}selected{% endif %}>Nombre</option>
                     <option value="unidades" {% if gaveta_orden == 'unidades' %}selected{% endif %}>Unidades</option>
                 </select>
                 <input type="hidden" name="gaveta_pagina" value="1" />
@@ -264,41 +282,14 @@
                         <thead>
                             <tr>
                                 <th>Gaveta</th>
-                                <th>Pedido</th>
-                                <th>Cliente</th>
-                                <th>Código</th>
-                                <th>Descripción</th>
-                                <th>Unidades</th>
-                                <th>Acciones</th>
+                                <th>Total de unidades</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for gaveta in gavetas_activas %}
                                 <tr>
                                     <td>{{ gaveta.nombre }}</td>
-                                    <td>#{{ gaveta.pedido_id }}</td>
-                                    <td>{{ gaveta.cliente }}</td>
-                                    <td>{{ gaveta.codigo }}</td>
-                                    <td>{{ gaveta.descripcion }}</td>
                                     <td>{{ gaveta.unidades }}</td>
-                                    <td class="table-actions">
-                                        <form method="post" class="table-actions">
-                                            <input type="hidden" name="accion" value="actualizar_gaveta_unidades" />
-                                            <input type="hidden" name="pedido_id" value="{{ gaveta.pedido_id }}" />
-                                            <input type="hidden" name="codigo_linea" value="{{ gaveta.codigo }}" />
-                                            <label for="gaveta-unidades-{{ loop.index }}" class="sr-only">Unidades en gaveta</label>
-                                            <input type="number" class="inline-input" id="gaveta-unidades-{{ loop.index }}" name="nuevas_unidades" min="0" value="{{ gaveta.unidades }}" />
-                                            <button type="submit" class="btn-success">Ajustar</button>
-                                        </form>
-                                        <form method="post" class="table-actions">
-                                            <input type="hidden" name="accion" value="mover_gaveta" />
-                                            <input type="hidden" name="pedido_id" value="{{ gaveta.pedido_id }}" />
-                                            <input type="hidden" name="codigo_linea" value="{{ gaveta.codigo }}" />
-                                            <label for="mover-{{ loop.index }}" class="sr-only">Nueva gaveta</label>
-                                            <input type="text" class="inline-input" id="mover-{{ loop.index }}" name="nueva_gaveta" placeholder="Ej. Gaveta B3" />
-                                            <button type="submit" class="btn-warning">Mover</button>
-                                        </form>
-                                    </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
@@ -307,7 +298,7 @@
                 <div class="pagination" aria-label="Paginación de gavetas activas">
                     <span class="text-muted">{{ total_gavetas }} gavetas</span>
                     {% for pagina in range(1, paginas_gavetas + 1) %}
-                        <a class="button-link pill {% if pagina == gaveta_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', gaveta_pagina=pagina, gaveta_cliente=gaveta_cliente, gaveta_codigo=gaveta_codigo, gaveta_orden=gaveta_orden, pendiente_pagina=pendiente_pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden) }}">{{ pagina }}</a>
+                        <a class="button-link pill {% if pagina == gaveta_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', gaveta_pagina=pagina, gaveta_nombre=gaveta_nombre, gaveta_orden=gaveta_orden, pendiente_pagina=pendiente_pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden) }}">{{ pagina }}</a>
                     {% endfor %}
                 </div>
             {% else %}

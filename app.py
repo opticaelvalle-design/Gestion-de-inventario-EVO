@@ -23,6 +23,8 @@ app.secret_key = "cambia-esta-clave"  # Necesaria para mostrar mensajes flash
 
 # Historial en memoria para permitir deshacer la última lectura de código
 lecturas_historial = []
+# Registro cronológico de todas las lecturas realizadas
+lecturas_registradas = []
 
 # Datos iniciales para la demostración de funcionalidades
 INITIAL_STORAGE_LOCATIONS = [
@@ -1567,15 +1569,22 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
         gaveta = asignacion_existente["gaveta"]
         gaveta_creada = False
     else:
-        nombre = _generar_nombre_gaveta()
-        gaveta = {"nombre": nombre, "tipo": "Gaveta", "created_at": datetime.now()}
-        storage_locations.append(gaveta)
-        with get_connection() as conn:
-            conn.execute(
-                "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
-                (gaveta["nombre"], gaveta["tipo"], gaveta["created_at"].isoformat()),
-            )
-        gaveta_creada = True
+        gaveta_existente = next(
+            (
+                ubicacion
+                for ubicacion in storage_locations
+                if ubicacion["tipo"].lower() == "gaveta"
+                and ubicacion["nombre"].lower() == pedido["nombre"].lower()
+            ),
+            None,
+        )
+
+        if gaveta_existente:
+            gaveta = gaveta_existente
+            gaveta_creada = False
+        else:
+            gaveta = _asegurar_gaveta_existente(pedido["nombre"])
+            gaveta_creada = True
 
     fecha_creacion_gaveta = (
         asignacion_existente["gaveta"]["created_at"] if asignacion_existente else gaveta["created_at"]
@@ -1624,19 +1633,13 @@ def _actualizar_unidades_gaveta(clave, delta: int):
 
 
 def _listar_gavetas_activas():
-    gavetas = [
-        {
-            "nombre": asignacion["gaveta"]["nombre"],
-            "pedido_id": asignacion["pedido_id"],
-            "cliente": asignacion["cliente"],
-            "codigo": asignacion["codigo"],
-            "descripcion": asignacion["descripcion"],
-            "unidades": asignacion["unidades"],
-            "clave": _clave_gaveta(asignacion["pedido_id"], asignacion["codigo"]),
-        }
-        for asignacion in gaveta_asignaciones.values()
-    ]
-    return sorted(gavetas, key=lambda gaveta: (gaveta["pedido_id"], gaveta["codigo"].lower()))
+    gavetas = {}
+    for asignacion in gaveta_asignaciones.values():
+        nombre = asignacion["gaveta"]["nombre"]
+        registro = gavetas.setdefault(nombre, {"nombre": nombre, "unidades": 0})
+        registro["unidades"] += asignacion["unidades"]
+
+    return sorted(gavetas.values(), key=lambda gaveta: gaveta["nombre"].lower())
 
 
 def _asegurar_gaveta_existente(nombre: str):
@@ -1933,6 +1936,14 @@ def _deshacer_ultima_lectura():
     return registro
 
 
+def _paginar(items, pagina, tamano=6):
+    total = len(items)
+    total_paginas = max(1, math.ceil(total / tamano))
+    pagina = max(1, min(pagina, total_paginas))
+    inicio = (pagina - 1) * tamano
+    return items[inicio : inicio + tamano], total_paginas, total
+
+
 @app.route("/lectura-codigos", methods=["GET", "POST"])
 def lectura_codigos():
     global active_delivery_note_id
@@ -1942,9 +1953,8 @@ def lectura_codigos():
     pendiente_codigo = request.args.get("pendiente_codigo", "").strip()
     pendiente_orden = request.args.get("pendiente_orden", "fecha_desc")
     pendiente_pagina = request.args.get("pendiente_pagina", type=int, default=1)
-    gaveta_cliente = request.args.get("gaveta_cliente", "").strip()
-    gaveta_codigo = request.args.get("gaveta_codigo", "").strip()
-    gaveta_orden = request.args.get("gaveta_orden", "pedido")
+    gaveta_nombre = request.args.get("gaveta_nombre", "").strip()
+    gaveta_orden = request.args.get("gaveta_orden", "nombre")
     gaveta_pagina = request.args.get("gaveta_pagina", type=int, default=1)
     albaran_activo = _buscar_albaran(active_delivery_note_id) if active_delivery_note_id else None
 
@@ -1995,6 +2005,17 @@ def lectura_codigos():
                 if registro.get("gaveta"):
                     resultado["gaveta"] = registro["gaveta"]
                     resultado["unidades_gaveta"] = registro.get("unidades_gaveta", 0)
+                lecturas_registradas.append(
+                    {
+                        "timestamp": datetime.now(),
+                        "pedido_id": registro["pedido_id"],
+                        "cliente": registro["cliente"],
+                        "codigo": registro["linea"]["codigo"],
+                        "descripcion": registro["linea"].get("descripcion", ""),
+                        "gaveta": registro.get("gaveta"),
+                        "accion": "deshacer",
+                    }
+                )
         elif accion == "ajustar_linea":
             pedido_id = request.form.get("pedido_id", type=int)
             codigo_linea = request.form.get("codigo_linea", "").strip()
@@ -2091,6 +2112,18 @@ def lectura_codigos():
                             "gaveta_key": gaveta_key,
                         }
                     )
+                    lecturas_registradas.append(
+                        {
+                            "timestamp": datetime.now(),
+                            "pedido_id": pedido["id"],
+                            "cliente": pedido["cliente"],
+                            "codigo": linea["codigo"],
+                            "descripcion": linea.get("descripcion", ""),
+                            "gaveta": asignacion["gaveta"]["nombre"],
+                            "albaran": albaran_activo["numero"] if albaran_activo else None,
+                            "accion": "lectura",
+                        }
+                    )
                     if completado:
                         flash(
                             f"Se completó la línea del código {linea['codigo']} en el pedido #{pedido['id']}.",
@@ -2127,9 +2160,12 @@ def lectura_codigos():
     lineas_pendientes = _aplicar_filtros_registros(
         lineas_pendientes, pendiente_cliente, pendiente_codigo
     )
-    gavetas_activas = _aplicar_filtros_registros(
-        gavetas_activas, gaveta_cliente, gaveta_codigo
-    )
+    if gaveta_nombre:
+        gavetas_activas = [
+            gaveta
+            for gaveta in gavetas_activas
+            if gaveta_nombre.lower() in gaveta["nombre"].lower()
+        ]
 
     ordenes_lineas = {
         "fecha_desc": (lambda l: l["fecha"], True),
@@ -2143,21 +2179,13 @@ def lectura_codigos():
     lineas_pendientes = sorted(lineas_pendientes, key=key_lineas, reverse=reverse_lineas)
 
     ordenes_gavetas = {
-        "pedido": (lambda g: (g["pedido_id"], g["codigo"].lower()), False),
+        "nombre": (lambda g: g["nombre"].lower(), False),
         "unidades": (lambda g: g["unidades"], True),
-        "codigo": (lambda g: g["codigo"].lower(), False),
     }
     key_gaveta, reverse_gaveta = ordenes_gavetas.get(
-        gaveta_orden, (lambda g: (g["pedido_id"], g["codigo"].lower()), False)
+        gaveta_orden, (lambda g: g["nombre"].lower(), False)
     )
     gavetas_activas = sorted(gavetas_activas, key=key_gaveta, reverse=reverse_gaveta)
-
-    def _paginar(items, pagina, tamano=6):
-        total = len(items)
-        total_paginas = max(1, math.ceil(total / tamano))
-        pagina = max(1, min(pagina, total_paginas))
-        inicio = (pagina - 1) * tamano
-        return items[inicio : inicio + tamano], total_paginas, total
 
     lineas_paginadas, paginas_pendientes, total_lineas = _paginar(
         lineas_pendientes, pendiente_pagina
@@ -2184,13 +2212,68 @@ def lectura_codigos():
         pendiente_pagina=pendiente_pagina,
         paginas_pendientes=paginas_pendientes,
         total_lineas=total_lineas,
-        gaveta_cliente=gaveta_cliente,
-        gaveta_codigo=gaveta_codigo,
+        gaveta_nombre=gaveta_nombre,
         gaveta_orden=gaveta_orden,
         gaveta_pagina=gaveta_pagina,
         paginas_gavetas=paginas_gavetas,
         total_gavetas=total_gavetas,
         filtros_query=request.args,
+    )
+
+
+@app.route("/historial-lecturas")
+def historial_lecturas():
+    filtro_cliente = request.args.get("cliente", "").strip()
+    filtro_codigo = request.args.get("codigo", "").strip()
+    filtro_accion = request.args.get("accion", "").strip().lower()
+    filtro_pedido = request.args.get("pedido_id", type=int)
+    pagina = request.args.get("pagina", type=int, default=1)
+
+    registros = list(lecturas_registradas)
+
+    if filtro_cliente:
+        registros = [
+            reg
+            for reg in registros
+            if filtro_cliente.lower() in reg.get("cliente", "").lower()
+        ]
+
+    if filtro_codigo:
+        registros = [
+            reg
+            for reg in registros
+            if filtro_codigo.lower() in reg.get("codigo", "").lower()
+            or filtro_codigo.lower() in reg.get("descripcion", "").lower()
+        ]
+
+    if filtro_accion in {"lectura", "deshacer"}:
+        registros = [reg for reg in registros if reg.get("accion") == filtro_accion]
+
+    if filtro_pedido:
+        registros = [
+            reg for reg in registros if reg.get("pedido_id") == filtro_pedido
+        ]
+
+    registros = sorted(
+        registros,
+        key=lambda reg: reg.get("timestamp") or datetime.min,
+        reverse=True,
+    )
+
+    registros_paginados, total_paginas, total_registros = _paginar(
+        registros, pagina, tamano=15
+    )
+
+    return render_template(
+        "historial_lecturas.html",
+        registros=registros_paginados,
+        pagina=pagina,
+        total_paginas=total_paginas,
+        total_registros=total_registros,
+        filtro_cliente=filtro_cliente,
+        filtro_codigo=filtro_codigo,
+        filtro_accion=filtro_accion,
+        filtro_pedido=filtro_pedido,
     )
 
 
