@@ -2293,17 +2293,11 @@ def buscar_articulos():
     return render_template("buscar_articulos.html", termino=termino, resultados=resultados)
 
 
-@app.route("/mostrar-stock")
-def mostrar_stock():
-    inventario_resumido = _resumen_inventario()
-    return render_template("mostrar_stock.html", inventario=inventario_resumido)
-
-
 @app.route("/inventario/<codigo>/actualizar", methods=["POST"])
 def actualizar_inventario(codigo: str):
     if not _articulos_por_codigo(codigo):
         flash("No se encontró el artículo solicitado.", "error")
-        return redirect(url_for("mostrar_stock"))
+        return redirect(url_for("panel_control"))
 
     flash("Gestiona este artículo desde la vista de detalle.", "info")
     return redirect(url_for("inventario_detalle", codigo=codigo))
@@ -2314,7 +2308,7 @@ def inventario_detalle(codigo: str):
     articulos = _articulos_por_codigo(codigo)
     if not articulos:
         flash("No se encontró el artículo solicitado.", "error")
-        return redirect(url_for("mostrar_stock"))
+        return redirect(url_for("panel_control"))
 
     total_unidades = sum(item["cantidad"] for item in articulos)
     ubicaciones = sorted(articulos, key=lambda item: item["ubicacion"].lower())
@@ -2340,7 +2334,7 @@ def actualizar_articulo(codigo: str):
     articulos = _articulos_por_codigo(codigo)
     if not articulos:
         flash("No se encontró el artículo solicitado.", "error")
-        return redirect(url_for("mostrar_stock"))
+        return redirect(url_for("panel_control"))
 
     nuevo_codigo = request.form.get("codigo", "").strip()
     nuevo_nombre = request.form.get("nombre", "").strip()
@@ -2424,7 +2418,7 @@ def actualizar_existencia(codigo: str, item_id: int):
     articulos = _articulos_por_codigo(codigo)
     if not articulos:
         flash("No se encontró el artículo solicitado.", "error")
-        return redirect(url_for("mostrar_stock"))
+        return redirect(url_for("panel_control"))
 
     item = next((articulo for articulo in articulos if articulo["id"] == item_id), None)
     if not item:
@@ -2471,7 +2465,7 @@ def agregar_existencia(codigo: str):
     articulos = _articulos_por_codigo(codigo)
     if not articulos:
         flash("No se encontró el artículo solicitado.", "error")
-        return redirect(url_for("mostrar_stock"))
+        return redirect(url_for("panel_control"))
 
     ubicacion = request.form.get("ubicacion", "").strip()
     cantidad = request.form.get("cantidad", type=int)
@@ -2534,7 +2528,7 @@ def eliminar_articulo(codigo: str):
     articulos = _articulos_por_codigo(codigo)
     if not articulos:
         flash("No se encontró el artículo solicitado.", "error")
-        return redirect(url_for("mostrar_stock"))
+        return redirect(url_for("panel_control"))
 
     inventario_filtrado = [
         item for item in inventory_items if item["codigo"].lower() != codigo.lower()
@@ -2554,7 +2548,7 @@ def eliminar_articulo(codigo: str):
         conn.execute("DELETE FROM gaveta_asignaciones WHERE lower(codigo) = ?", (codigo.lower(),))
 
     flash("Artículo eliminado junto con sus ubicaciones.", "success")
-    return redirect(url_for("mostrar_stock"))
+    return redirect(url_for("panel_control"))
 
 
 @app.route("/panel-control")
@@ -2714,6 +2708,44 @@ def editar_pedido(pedido_id: int):
         )
 
     flash("Pedido actualizado correctamente.", "success")
+    return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+
+@app.route("/pedidos/<int:pedido_id>/lineas", methods=["POST"])
+def agregar_linea_pedido(pedido_id: int):
+    pedido = next((pedido for pedido in purchase_orders if pedido["id"] == pedido_id), None)
+    if not pedido:
+        flash("No se encontró el pedido especificado.", "error")
+        return redirect(url_for("pedidos"))
+
+    codigo = request.form.get("codigo", "").strip()
+    descripcion = request.form.get("descripcion", "").strip()
+    cantidad = request.form.get("cantidad", type=int)
+
+    if not codigo or not descripcion or cantidad is None or cantidad <= 0:
+        flash("Indica código, descripción y una cantidad mayor que cero.", "error")
+        return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
+
+    nueva_linea = {
+        "codigo": codigo,
+        "descripcion": descripcion,
+        "cantidad_pedida": cantidad,
+        "cantidad_recibida": 0,
+        "cantidad_pendiente": cantidad,
+    }
+
+    pedido["lineas"].append(nueva_linea)
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO purchase_order_lines (pedido_id, codigo, descripcion, cantidad_pedida, cantidad_recibida, cantidad_pendiente)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (pedido_id, codigo, descripcion, cantidad, 0, cantidad),
+        )
+
+    flash("Se añadió una nueva línea al pedido.", "success")
     return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
 
 
