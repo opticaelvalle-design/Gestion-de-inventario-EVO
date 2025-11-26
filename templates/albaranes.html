@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Albaranes de entrada · Gestión de Inventario EVO{% endblock %}
 {% block content %}
-<section class="card" style="gap: 1rem;">
-    <div>
-        <h2>Albaranes de entrada</h2>
-        <p>Consulta el histórico de albaranes que has ido recibiendo y accede a su detalle.</p>
+<section class="stacked-panel">
+    <div class="section-header">
+        <div>
+            <h2 class="section-title" style="margin: 0;">Albaranes de entrada</h2>
+            <p class="muted" style="margin: 0;">Consulta el histórico de albaranes que has ido recibiendo y accede a su detalle.</p>
+        </div>
+        <span class="pill">Visión consolidada</span>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+    <div class="grid-responsive">
         <div class="stat-card">
             <span>Total albaranes</span>
             <strong>{{ totales_generales.total_albaranes }}</strong>
@@ -27,7 +30,7 @@
 </section>
 
 {% if albaranes %}
-    <div style="overflow-x: auto;">
+    <div class="table-wrapper" role="region" aria-label="Tabla de albaranes">
         <table>
             <thead>
                 <tr>
@@ -54,10 +57,10 @@
                         <td>{{ '€{:.2f}'.format(albaran.total_pvo) }}</td>
                         <td>{{ '€{:.2f}'.format(albaran.total_pvp) }}</td>
                         <td>
-                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                <a class="button-link" style="padding: 0.4rem 0.65rem;" href="{{ url_for('albaran_detalle', albaran_id=albaran.id) }}">Ver detalle</a>
+                            <div class="table-actions">
+                                <a class="button-link" href="{{ url_for('albaran_detalle', albaran_id=albaran.id) }}">Ver detalle</a>
                                 <form method="post" action="{{ url_for('eliminar_albaran', albaran_id=albaran.id) }}" onsubmit="return confirm('¿Seguro que quieres eliminar el albarán {{ albaran.numero }}?');">
-                                    <button type="submit" class="button-link" style="background-color: #b3261e; color: white; border: none; padding: 0.4rem 0.65rem; border-radius: 6px; cursor: pointer;">Eliminar</button>
+                                    <button type="submit" class="btn-danger">Eliminar</button>
                                 </form>
                             </div>
                         </td>

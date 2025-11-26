@@ -352,6 +352,21 @@ def _traspasar_a_sucursal(origen: str, destino: str, producto: dict, cantidad: i
     )
 
 
+@app.context_processor
+def inject_sidebar_data():
+    albaranes_sidebar = sorted(
+        delivery_notes, key=lambda nota: nota["fecha"], reverse=True
+    )
+    albaran_activo = next(
+        (nota for nota in albaranes_sidebar if nota["id"] == active_delivery_note_id),
+        None,
+    )
+    return {
+        "sidebar_albaranes": albaranes_sidebar,
+        "sidebar_albaran_activo": albaran_activo,
+    }
+
+
 def _inicializar_optica_demo():
     for sucursal, productos in INITIAL_OPTICA_STOCK.items():
         inventario = _asegurar_sucursal_optica(sucursal)
@@ -1530,6 +1545,41 @@ def _lineas_pendientes():
     return lineas
 
 
+def _buscar_pedido_y_linea(pedido_id: int, codigo: str):
+    codigo_lower = codigo.lower()
+    pedido = next((p for p in purchase_orders if p["id"] == pedido_id), None)
+    if not pedido:
+        return None, None
+
+    linea = next(
+        (linea for linea in pedido["lineas"] if linea["codigo"].lower() == codigo_lower),
+        None,
+    )
+    return pedido, linea
+
+
+def _buscar_o_crear_gaveta(nombre: str):
+    existente = next(
+        (ubicacion for ubicacion in storage_locations if ubicacion["nombre"].lower() == nombre.lower()),
+        None,
+    )
+    if existente:
+        return existente, False
+
+    nueva_gaveta = {
+        "nombre": nombre,
+        "tipo": "Gaveta",
+        "created_at": datetime.now(),
+    }
+    storage_locations.append(nueva_gaveta)
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
+            (nueva_gaveta["nombre"], nueva_gaveta["tipo"], nueva_gaveta["created_at"].isoformat()),
+        )
+    return nueva_gaveta, True
+
+
 def _clave_gaveta(pedido_id: int, codigo: str):
     return (pedido_id, codigo.lower())
 
@@ -1927,6 +1977,51 @@ def lectura_codigos():
                 if registro.get("gaveta"):
                     resultado["gaveta"] = registro["gaveta"]
                     resultado["unidades_gaveta"] = registro.get("unidades_gaveta", 0)
+        elif accion == "ajustar_linea":
+            pedido_id = request.form.get("pedido_id", type=int)
+            codigo_linea = request.form.get("codigo", "").strip()
+            nueva_recibida = request.form.get("nueva_recibida", type=int)
+            delta_cantidad = request.form.get("delta", type=int)
+            nueva_gaveta = request.form.get("nueva_gaveta", "").strip()
+
+            pedido_obj, linea_obj = _buscar_pedido_y_linea(pedido_id, codigo_linea)
+            if not pedido_obj or not linea_obj:
+                flash("No se encontró la línea a actualizar.", "error")
+            else:
+                limite = linea_obj["cantidad_pedida"]
+                cantidad_objetivo = (
+                    nueva_recibida
+                    if nueva_recibida is not None
+                    else linea_obj["cantidad_recibida"]
+                )
+                if delta_cantidad:
+                    cantidad_objetivo += delta_cantidad
+
+                cantidad_objetivo = max(0, min(limite, cantidad_objetivo))
+                delta_aplicado = cantidad_objetivo - linea_obj["cantidad_recibida"]
+
+                linea_obj["cantidad_recibida"] = cantidad_objetivo
+                linea_obj["cantidad_pendiente"] = max(
+                    linea_obj["cantidad_pedida"] - cantidad_objetivo, 0
+                )
+                _persistir_linea_pedido(pedido_obj["id"], linea_obj)
+
+                if delta_aplicado != 0:
+                    gaveta_key, asignacion, _ = _obtener_o_crear_gaveta(pedido_obj, linea_obj)
+                    _actualizar_unidades_gaveta(gaveta_key, delta_aplicado)
+
+                if nueva_gaveta:
+                    gaveta_destino, creado = _buscar_o_crear_gaveta(nueva_gaveta)
+                    _asignar_gaveta_existente(pedido_obj, linea_obj, gaveta_destino)
+                    flash(
+                        f"Gaveta {'creada y ' if creado else ''}asignada a {linea_obj['codigo']}.",
+                        "info",
+                    )
+
+                flash(
+                    f"Actualizadas las unidades recibidas de {linea_obj['codigo']} (pedido #{pedido_obj['id']}).",
+                    "success",
+                )
         else:
             codigo = request.form.get("codigo", "").strip()
             if not codigo:
