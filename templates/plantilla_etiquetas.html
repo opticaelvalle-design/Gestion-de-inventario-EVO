@@ -261,6 +261,10 @@
             border: none;
         }
 
+        .grid-cell:not(.filled) {
+            display: none !important;
+        }
+
         .cell-input {
             display: none !important;
         }
@@ -346,7 +350,12 @@
     const catalogoMap = new Map(catalogo.map((item) => [item.codigo.toLowerCase(), item]));
 
     function renderDataMatrix(canvas, text) {
-        if (!canvas || !window.BwipJS) return;
+        if (!canvas) return;
+        const bwip = window.BwipJS || window.BWIPJS || window.bwipjs;
+        if (!bwip || typeof bwip.toCanvas !== 'function') {
+            console.error('Biblioteca bwip-js no cargada, no se puede generar DataMatrix');
+            return;
+        }
         const size = 64;
         canvas.width = size;
         canvas.height = size;
@@ -356,7 +365,7 @@
             return;
         }
         try {
-            BwipJS.toCanvas(canvas, {
+            bwip.toCanvas(canvas, {
                 bcid: 'datamatrix',
                 text,
                 scale: 2,
