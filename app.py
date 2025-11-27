@@ -7,6 +7,7 @@ from pathlib import Path
 from flask import (
     Flask,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -917,6 +918,14 @@ def _resumen_inventario():
     return sorted(resumen.values(), key=lambda entry: entry["codigo"].lower())
 
 
+def _buscar_producto_optica_global(codigo: str):
+    for sucursal in OPTICA_BRANCHES:
+        producto = _buscar_producto_optica(sucursal, codigo)
+        if producto:
+            return producto, sucursal
+    return None, None
+
+
 @app.route("/stock-opticas", methods=["GET", "POST"])
 def stock_opticas():
     sucursal = (
@@ -1217,6 +1226,41 @@ def exportar_stock_opticas():
         as_attachment=True,
         download_name=filename,
     )
+
+
+@app.route("/api/stock-opticas/<codigo>")
+def api_stock_opticas(codigo: str):
+    producto, sucursal = _buscar_producto_optica_global(codigo)
+    if not producto:
+        return jsonify({"found": False}), 404
+
+    return jsonify(
+        {
+            "found": True,
+            "codigo": producto.get("codigo", ""),
+            "nombre": producto.get("nombre", ""),
+            "precio_pvp": producto.get("precio_pvp", 0),
+            "tipo": producto.get("tipo", ""),
+            "sucursal": sucursal,
+        }
+    )
+
+
+@app.route("/etiquetas-opticas")
+def etiquetas_opticas():
+    catalogo = {}
+    for sucursal in OPTICA_BRANCHES:
+        for producto in _asegurar_sucursal_optica(sucursal):
+            clave = producto["codigo"].lower()
+            if clave not in catalogo:
+                catalogo[clave] = {
+                    "codigo": producto.get("codigo", ""),
+                    "nombre": producto.get("nombre", ""),
+                    "precio_pvp": producto.get("precio_pvp", 0),
+                    "sucursal": sucursal,
+                }
+
+    return render_template("etiquetas_opticas.html", catalogo_opticas=catalogo)
 
 
 @app.route("/")
