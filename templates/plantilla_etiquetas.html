@@ -229,20 +229,30 @@
         header,
         .messages,
         .content-header,
-        .info-card,
-        .a4-panel {
+        .info-card {
             display: none !important;
         }
 
         main,
         .page-container,
         .layout-grid,
-        .a4-wrapper,
-        .a4-sheet {
+        .a4-wrapper {
             margin: 0;
             padding: 0;
-            width: 100%;
             display: block;
+            box-shadow: none;
+        }
+
+        .a4-panel {
+            padding: 0;
+            box-shadow: none;
+        }
+
+        .a4-sheet {
+            width: 210mm;
+            height: 297mm;
+            margin: 0 auto;
+            padding: 10mm 5mm;
             box-shadow: none;
         }
 
