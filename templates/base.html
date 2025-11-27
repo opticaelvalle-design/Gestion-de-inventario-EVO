@@ -557,6 +557,7 @@
         <a href="{{ url_for('buscar_articulos') }}" class="{% if request.path == url_for('buscar_articulos') %}active{% endif %}">Buscar artículos</a>
         <a href="{{ url_for('panel_control') }}" class="{% if request.path == url_for('panel_control') %}active{% endif %}">Panel de control</a>
         <a href="{{ url_for('stock_opticas') }}" class="{% if request.path == url_for('stock_opticas') %}active{% endif %}">Stock ópticas</a>
+        <a href="{{ url_for('etiquetas_opticas') }}" class="{% if request.path == url_for('etiquetas_opticas') %}active{% endif %}">Etiquetas ópticas</a>
     </nav>
     {% with messages = get_flashed_messages(with_categories=True) %}
         {% if messages %}

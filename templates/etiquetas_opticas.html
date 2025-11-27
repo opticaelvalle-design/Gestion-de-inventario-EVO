@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}Etiquetas ópticas · Gestión de Inventario EVO{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .layout-etiquetas { display: grid; gap: 1.25rem; }
+    .panel-acciones { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+    .estado-etiquetas { margin: 0; color: #57606f; font-weight: 600; }
+    .estado-etiquetas.success { color: #1b8f45; }
+    .estado-etiquetas.warning { color: #c23616; }
+
+    .hoja-preview { display: flex; justify-content: center; }
+    .hoja-a4 {
+        width: 210mm;
+        height: 297mm;
+        background: #fff;
+        padding: 10mm 5mm;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        position: relative;
+        overflow: hidden;
+    }
+    .etiquetas-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 33mm);
+        grid-auto-rows: 10mm;
+        gap: 0;
+        width: 100%;
+        height: 100%;
+    }
+    .etiqueta-celda {
+        position: relative;
+        box-sizing: border-box;
+        padding: 1mm 1.5mm;
+        display: flex;
+        align-items: center;
+        gap: 1.5mm;
+        overflow: hidden;
+    }
+    .etiqueta-celda::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border: 1px dashed #eef1f5;
+        pointer-events: none;
+    }
+    .etiqueta-contenido { display: flex; align-items: center; gap: 1.5mm; width: 100%; }
+    .etiqueta-qrcode { width: 8mm; height: 8mm; flex-shrink: 0; }
+    .etiqueta-texto { display: grid; gap: 0.5mm; line-height: 1.1; width: 100%; }
+    .etiqueta-codigo { font-weight: 700; font-size: 11px; color: #273c75; }
+    .etiqueta-nombre { font-size: 10px; color: #2f3640; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .etiqueta-pvp { font-size: 10px; color: #1b8f45; font-weight: 700; }
+    .etiqueta-aviso { font-size: 10px; color: #c23616; }
+
+    .etiqueta-input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 1px dashed #dcdde1;
+        background: rgba(255, 255, 255, 0.8);
+        color: #2f3640;
+        padding: 1mm 1.5mm;
+        font-size: 12px;
+        outline: none;
+    }
+    .etiqueta-celda[data-estado="rellena"] .etiqueta-input {
+        border-color: transparent;
+        background: transparent;
+        color: transparent;
+    }
+    .etiqueta-celda.is-focused::after { border-color: #40739e; }
+
+    .exportando .etiqueta-celda::after { border-color: transparent; }
+    .exportando .etiqueta-input { border: none; color: transparent; }
+
+    @media print {
+        body { background: #fff; }
+        .hoja-a4 { box-shadow: none; margin: 0 auto; }
+        nav, header, .panel-acciones { display: none; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="card layout-etiquetas">
+    <div class="panel-acciones">
+        <div>
+            <h2>Etiquetas en A4</h2>
+            <p class="estado-etiquetas" id="estado-etiquetas">Introduce códigos para generar etiquetas.</p>
+        </div>
+        <button type="button" id="exportar-pdf">Exportar PDF</button>
+    </div>
+    <div class="hoja-preview">
+        <div class="hoja-a4" id="hoja-etiquetas" aria-label="Hoja A4 para etiquetas">
+            <div class="etiquetas-grid" id="etiquetas-grid" role="grid" aria-label="Plantilla de 6 columnas por 23 filas"></div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bwip-js@3.2.4/dist/bwip-js-min.js"></script>
+<script>
+    const catalogoOpticas = {{ catalogo_opticas|tojson }};
+    const filas = 23;
+    const columnas = 6;
+
+    const grid = document.getElementById('etiquetas-grid');
+    const hoja = document.getElementById('hoja-etiquetas');
+    const estado = document.getElementById('estado-etiquetas');
+    const exportarBtn = document.getElementById('exportar-pdf');
+
+    function actualizarEstado(mensaje, tipo = '') {
+        estado.textContent = mensaje;
+        estado.classList.remove('success', 'warning');
+        if (tipo) {
+            estado.classList.add(tipo);
+        }
+    }
+
+    async function buscarProducto(codigo) {
+        const clave = codigo.toLowerCase();
+        if (catalogoOpticas[clave]) {
+            return catalogoOpticas[clave];
+        }
+
+        try {
+            const respuesta = await fetch(`/api/stock-opticas/${encodeURIComponent(codigo)}`);
+            if (!respuesta.ok) return null;
+            const datos = await respuesta.json();
+            if (datos.found) {
+                catalogoOpticas[clave] = datos;
+                return datos;
+            }
+        } catch (error) {
+            console.error('No se pudo consultar el stock ópticas', error);
+        }
+        return null;
+    }
+
+    function limpiarCelda(celda, input, aviso = '') {
+        celda.dataset.estado = '';
+        celda.classList.remove('is-focused');
+        const texto = celda.querySelector('.etiqueta-texto');
+        texto.innerHTML = aviso ? `<span class="etiqueta-aviso">${aviso}</span>` : '';
+        const canvas = celda.querySelector('canvas');
+        const context = canvas.getContext('2d');
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        if (!aviso) {
+            input.value = '';
+        }
+    }
+
+    function renderProducto(celda, producto) {
+        const canvas = celda.querySelector('canvas');
+        const texto = celda.querySelector('.etiqueta-texto');
+        celda.dataset.estado = 'rellena';
+
+        try {
+            bwipjs.toCanvas(canvas, {
+                bcid: 'datamatrix',
+                text: producto.codigo,
+                scale: 2,
+                paddingwidth: 0,
+                paddingheight: 0,
+            });
+        } catch (error) {
+            console.error('Error al generar Data Matrix', error);
+        }
+
+        const precio = Number(producto.precio_pvp || 0).toFixed(2);
+        texto.innerHTML = `
+            <div class="etiqueta-codigo">${producto.codigo}</div>
+            <div class="etiqueta-nombre">${producto.nombre || ''}</div>
+            <div class="etiqueta-pvp">PVP: ${precio} €</div>
+        `;
+    }
+
+    function crearCelda(indice) {
+        const celda = document.createElement('div');
+        celda.className = 'etiqueta-celda';
+        celda.setAttribute('role', 'gridcell');
+        celda.setAttribute('data-indice', indice);
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'etiqueta-input';
+        input.placeholder = 'Código';
+        input.setAttribute('aria-label', `Celda ${indice + 1}`);
+
+        const contenido = document.createElement('div');
+        contenido.className = 'etiqueta-contenido';
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'etiqueta-qrcode';
+        canvas.width = 120;
+        canvas.height = 120;
+
+        const texto = document.createElement('div');
+        texto.className = 'etiqueta-texto';
+
+        contenido.append(canvas, texto);
+        celda.append(contenido, input);
+
+        input.addEventListener('focus', () => {
+            celda.classList.add('is-focused');
+        });
+
+        input.addEventListener('blur', () => {
+            celda.classList.remove('is-focused');
+        });
+
+        input.addEventListener('keydown', async (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const codigo = input.value.trim();
+                if (!codigo) {
+                    limpiarCelda(celda, input);
+                    return;
+                }
+                const producto = await buscarProducto(codigo);
+                if (producto) {
+                    renderProducto(celda, producto);
+                    actualizarEstado(`Etiqueta creada para ${codigo}.`, 'success');
+                } else {
+                    limpiarCelda(celda, input);
+                    actualizarEstado(`No se encontró ${codigo} en el stock ópticas.`, 'warning');
+                }
+            }
+        });
+
+        celda.addEventListener('dblclick', () => {
+            celda.dataset.estado = '';
+            input.value = '';
+            input.focus();
+            limpiarCelda(celda, input);
+        });
+
+        return celda;
+    }
+
+    function poblarGrid() {
+        grid.innerHTML = '';
+        const totalCeldas = filas * columnas;
+        for (let i = 0; i < totalCeldas; i++) {
+            const celda = crearCelda(i);
+            grid.appendChild(celda);
+        }
+    }
+
+    function exportarPDF() {
+        hoja.classList.add('exportando');
+        const opciones = {
+            margin: 0,
+            filename: 'etiquetas_opticas.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        };
+        html2pdf()
+            .set(opciones)
+            .from(hoja)
+            .save()
+            .finally(() => {
+                hoja.classList.remove('exportando');
+            });
+    }
+
+    exportarBtn.addEventListener('click', exportarPDF);
+    poblarGrid();
+</script>
+{% endblock %}
