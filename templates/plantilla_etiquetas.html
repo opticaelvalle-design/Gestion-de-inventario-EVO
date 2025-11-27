@@ -188,9 +188,6 @@
         color: #57606f;
     }
 
-    .cell-info .item-locations {
-        color: #8395a7;
-    }
 
     .cell-input {
         position: absolute;
@@ -301,7 +298,7 @@
             <ul class="help-list">
                 <li>Escribe un código y pulsa Enter para generar la etiqueta.</li>
                 <li>Los códigos se validan contra el stock de ópticas en cualquier centro.</li>
-                <li>Si existe en catálogo verás el DataMatrix (8×8mm), código, nombre, PVP y centros.</li>
+                <li>Si existe en catálogo verás el DataMatrix (8×8mm), código, nombre y PVP.</li>
                 <li>Doble clic en una celda para volver a editarla.</li>
             </ul>
         </div>
@@ -320,7 +317,6 @@
                                     <span class="item-code cell-empty-hint">Código</span>
                                     <span class="item-name cell-empty-hint">Nombre de producto</span>
                                     <span class="item-price cell-empty-hint">PVP</span>
-                                    <span class="item-locations cell-empty-hint">Centros</span>
                                 </div>
                             </div>
                             <input type="text" class="cell-input" autocomplete="off" placeholder="Escribe código" aria-label="Código de etiqueta {{ idx + 1 }}" />
@@ -372,7 +368,6 @@
         const codeNode = info.querySelector('.item-code');
         const nameNode = info.querySelector('.item-name');
         const priceNode = info.querySelector('.item-price');
-        const locationsNode = info.querySelector('.item-locations');
         const canvas = celda.querySelector('.datamatrix-canvas');
 
         if (!codigoIngresado) {
@@ -380,28 +375,21 @@
             codeNode.textContent = 'Código';
             nameNode.textContent = 'Nombre de producto';
             priceNode.textContent = 'PVP';
-            locationsNode.textContent = 'Centros';
             renderDataMatrix(canvas, '');
             return;
         }
 
         const articulo = catalogoMap.get(codigoIngresado.toLowerCase());
         const precio = articulo ? articulo.precio_pvp || 0 : 0;
-        const sucursales = articulo?.sucursales || [];
-
         if (articulo) {
             renderDataMatrix(canvas, articulo.codigo);
             codeNode.textContent = articulo.codigo;
             nameNode.textContent = articulo.nombre || 'Sin nombre';
             priceNode.textContent = `PVP: €${precio.toFixed(2)}`;
-            locationsNode.textContent = sucursales.length
-                ? `Centros: ${sucursales.join(', ')}`
-                : 'Centros: -';
         } else {
             codeNode.textContent = codigoIngresado;
             nameNode.textContent = 'No encontrado en catálogo';
             priceNode.textContent = '';
-            locationsNode.textContent = '';
             if (canvas) {
                 const ctx = canvas.getContext('2d');
                 ctx && ctx.clearRect(0, 0, canvas.width, canvas.height);
