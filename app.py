@@ -2331,14 +2331,31 @@ def exportar_informes():
 @app.route("/plantilla-etiquetas")
 def plantilla_etiquetas():
     """Vista para la plantilla de impresión en A4."""
+    catalogo_opticas = {}
+
+    for sucursal, productos in optica_inventory.items():
+        for producto in productos:
+            codigo = producto.get("codigo", "").strip()
+            if not codigo:
+                continue
+
+            clave = codigo.lower()
+            if clave not in catalogo_opticas:
+                catalogo_opticas[clave] = {
+                    "codigo": codigo,
+                    "nombre": producto.get("nombre", ""),
+                    "precio_pvp": float(producto.get("precio_pvp", 0.0) or 0.0),
+                    "sucursales": set(),
+                }
+
+            catalogo_opticas[clave]["sucursales"].add(sucursal)
 
     catalogo = [
         {
-            "codigo": item["codigo"],
-            "nombre": item.get("nombre", ""),
-            "precio_pvp": item.get("precio_pvp", 0.0) or 0.0,
+            **datos,
+            "sucursales": sorted(datos["sucursales"]),
         }
-        for item in inventory_items
+        for datos in catalogo_opticas.values()
     ]
 
     return render_template("plantilla_etiquetas.html", catalogo=catalogo)
