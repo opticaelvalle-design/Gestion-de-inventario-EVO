@@ -2332,7 +2332,16 @@ def exportar_informes():
 def plantilla_etiquetas():
     """Vista para la plantilla de impresión en A4."""
 
-    return render_template("plantilla_etiquetas.html")
+    catalogo = [
+        {
+            "codigo": item["codigo"],
+            "nombre": item.get("nombre", ""),
+            "precio_pvp": item.get("precio_pvp", 0.0) or 0.0,
+        }
+        for item in inventory_items
+    ]
+
+    return render_template("plantilla_etiquetas.html", catalogo=catalogo)
 
 
 @app.route("/exportar-informes/descargar")
