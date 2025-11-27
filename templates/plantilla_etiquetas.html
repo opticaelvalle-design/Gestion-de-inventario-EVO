@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+{% block title %}Plantilla de etiquetas{% endblock %}
+{% block extra_styles %}
+<style>
+    .page-container {
+        background: #f5f6fa;
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .layout-grid {
+        display: grid;
+        grid-template-columns: minmax(320px, 360px) 1fr;
+        gap: 1.25rem;
+        align-items: start;
+    }
+
+    @media (max-width: 1100px) {
+        .layout-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .info-card {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+        padding: 1.25rem 1.5rem;
+        display: grid;
+        gap: 0.75rem;
+        position: sticky;
+        top: 90px;
+    }
+
+    .info-card h3 {
+        margin: 0;
+        color: #273c75;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.6rem 0.8rem;
+    }
+
+    .info-item {
+        background: #f5f6fa;
+        border-radius: 10px;
+        padding: 0.75rem 0.9rem;
+        display: grid;
+        gap: 0.15rem;
+    }
+
+    .info-item span {
+        font-size: 0.95rem;
+        color: #57606f;
+    }
+
+    .info-item strong {
+        color: #2f3640;
+    }
+
+    .print-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .print-actions button {
+        background: #273c75;
+        color: #fff;
+        border: none;
+        padding: 0.65rem 1rem;
+        border-radius: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 10px 24px rgba(39, 60, 117, 0.25);
+        width: 100%;
+    }
+
+    .print-actions button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 30px rgba(39, 60, 117, 0.35);
+    }
+
+    .help-list {
+        margin: 0.25rem 0 0;
+        padding-left: 1.1rem;
+        color: #57606f;
+        display: grid;
+        gap: 0.2rem;
+    }
+
+    .a4-panel {
+        background: #fff;
+        border-radius: 16px;
+        padding: 1rem;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+    }
+
+    .a4-wrapper {
+        display: flex;
+        justify-content: center;
+    }
+
+    .a4-sheet {
+        width: 210mm;
+        height: 297mm;
+        margin: 0 auto;
+        background: #fff;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        padding: 10mm 5mm;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .grid-labels {
+        display: grid;
+        grid-template-columns: repeat(6, 33mm);
+        grid-auto-rows: 10mm;
+        gap: 0;
+        width: max-content;
+        border: 1px dashed #dcdde1;
+        background: #f9fafc;
+    }
+
+    .grid-cell {
+        width: 33mm;
+        height: 10mm;
+        border: 1px dashed #e6e9ef;
+        position: relative;
+        padding: 0.35mm 0.6mm;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .cell-display {
+        display: flex;
+        align-items: center;
+        gap: 1.2mm;
+        height: 100%;
+    }
+
+    .cell-datamatrix {
+        width: 8mm;
+        height: 8mm;
+        flex: 0 0 8mm;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f5f6fa;
+        border-radius: 2px;
+        border: 1px solid #e6e9ef;
+    }
+
+    .cell-datamatrix canvas {
+        width: 8mm;
+        height: 8mm;
+    }
+
+    .cell-info {
+        display: grid;
+        gap: 0.2mm;
+        min-width: 0;
+    }
+
+    .cell-info span {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 8px;
+        line-height: 1.2;
+    }
+
+    .cell-info .item-code {
+        font-weight: 700;
+        color: #273c75;
+    }
+
+    .cell-info .item-name {
+        color: #2f3640;
+    }
+
+    .cell-info .item-price {
+        color: #57606f;
+    }
+
+
+    .cell-input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+        background: rgba(39, 60, 117, 0.08);
+        color: #273c75;
+        font-weight: 700;
+        text-align: center;
+        font-size: 10px;
+        outline: none;
+        padding: 0 4px;
+    }
+
+    .grid-cell.filled .cell-input {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .cell-empty-hint {
+        font-size: 8px;
+        color: #a4b0be;
+    }
+
+    .page-note {
+        color: #57606f;
+        margin: 0.25rem 0 0;
+    }
+
+    @media print {
+        body {
+            margin: 0;
+            background: #fff;
+        }
+
+        nav,
+        header,
+        .messages,
+        .content-header,
+        .info-card {
+            display: none !important;
+        }
+
+        main,
+        .page-container,
+        .layout-grid,
+        .a4-wrapper {
+            margin: 0;
+            padding: 0;
+            display: block;
+            box-shadow: none;
+        }
+
+        .a4-panel {
+            padding: 0;
+            box-shadow: none;
+        }
+
+        .a4-sheet {
+            width: 210mm;
+            height: 297mm;
+            margin: 0 auto;
+            padding: 10mm 5mm;
+            box-shadow: none;
+        }
+
+        .grid-labels,
+        .grid-cell {
+            border: none;
+        }
+
+        .grid-cell:not(.filled) {
+            display: none !important;
+        }
+
+        .cell-input {
+            display: none !important;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 10mm 5mm;
+        }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<section class="surface page-container">
+    <div class="content-header">
+        <div>
+            <h2>Plantilla de etiquetas</h2>
+            <p class="muted">Hoja A4 con 6 columnas × 23 filas (33mm × 10mm) y márgenes 10mm/5mm lista para exportar.</p>
+        </div>
+    </div>
+
+    <div class="layout-grid">
+        <div class="info-card">
+            <h3>Instrucciones rápidas</h3>
+            <div class="print-actions">
+                <button type="button" onclick="window.print()">Exportar PDF</button>
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span>Tamaño de hoja</span>
+                    <strong>A4 (210mm × 297mm)</strong>
+                </div>
+                <div class="info-item">
+                    <span>Márgenes</span>
+                    <strong>10mm arriba/abajo · 5mm izquierda/derecha</strong>
+                </div>
+                <div class="info-item">
+                    <span>Rejilla</span>
+                    <strong>6 columnas × 23 filas</strong>
+                </div>
+                <div class="info-item">
+                    <span>Dimensión de celda</span>
+                    <strong>33mm de ancho × 10mm de alto</strong>
+                </div>
+            </div>
+            <ul class="help-list">
+                <li>Escribe un código y pulsa Enter para generar la etiqueta.</li>
+                <li>Los códigos se validan contra el stock de ópticas en cualquier centro.</li>
+                <li>Si existe en catálogo verás el DataMatrix (8×8mm), código, nombre y PVP.</li>
+                <li>Doble clic en una celda para volver a editarla.</li>
+            </ul>
+        </div>
+
+        <div class="a4-panel">
+            <div class="a4-wrapper">
+                <div class="a4-sheet" aria-label="Hoja A4 con plantilla de etiquetas">
+                    <div class="grid-labels">
+                        {% for idx in range(23 * 6) %}
+                        <div class="grid-cell" data-index="{{ idx }}">
+                            <div class="cell-display">
+                                <div class="cell-datamatrix" aria-hidden="true">
+                                    <canvas class="datamatrix-canvas" aria-label="DataMatrix"></canvas>
+                                </div>
+                                <div class="cell-info">
+                                    <span class="item-code cell-empty-hint">Código</span>
+                                    <span class="item-name cell-empty-hint">Nombre de producto</span>
+                                    <span class="item-price cell-empty-hint">PVP</span>
+                                </div>
+                            </div>
+                            <input type="text" class="cell-input" autocomplete="off" placeholder="Escribe código" aria-label="Código de etiqueta {{ idx + 1 }}" />
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/bwip-js@3.0.9/dist/bwip-js-min.js"></script>
+<script>
+    const catalogo = {{ catalogo | tojson }};
+    const catalogoMap = new Map(catalogo.map((item) => [item.codigo.toLowerCase(), item]));
+
+    function renderDataMatrix(canvas, text) {
+        if (!canvas) return;
+        const bwip = window.BwipJS || window.BWIPJS || window.bwipjs;
+        if (!bwip || typeof bwip.toCanvas !== 'function') {
+            console.error('Biblioteca bwip-js no cargada, no se puede generar DataMatrix');
+            return;
+        }
+        const size = 64;
+        canvas.width = size;
+        canvas.height = size;
+        if (!text) {
+            const ctx = canvas.getContext('2d');
+            ctx && ctx.clearRect(0, 0, size, size);
+            return;
+        }
+        try {
+            bwip.toCanvas(canvas, {
+                bcid: 'datamatrix',
+                text,
+                scale: 2,
+                includetext: false,
+                paddingwidth: 0,
+                paddingheight: 0,
+            });
+        } catch (error) {
+            console.error('Error al generar DataMatrix', error);
+        }
+    }
+
+    function actualizarCelda(input) {
+        const codigoIngresado = input.value.trim();
+        const celda = input.closest('.grid-cell');
+        if (!celda) return;
+
+        const info = celda.querySelector('.cell-info');
+        const codeNode = info.querySelector('.item-code');
+        const nameNode = info.querySelector('.item-name');
+        const priceNode = info.querySelector('.item-price');
+        const canvas = celda.querySelector('.datamatrix-canvas');
+
+        if (!codigoIngresado) {
+            celda.classList.remove('filled');
+            codeNode.textContent = 'Código';
+            nameNode.textContent = 'Nombre de producto';
+            priceNode.textContent = 'PVP';
+            renderDataMatrix(canvas, '');
+            return;
+        }
+
+        const articulo = catalogoMap.get(codigoIngresado.toLowerCase());
+        const precio = articulo ? articulo.precio_pvp || 0 : 0;
+        if (articulo) {
+            renderDataMatrix(canvas, articulo.codigo);
+            codeNode.textContent = articulo.codigo;
+            nameNode.textContent = articulo.nombre || 'Sin nombre';
+            priceNode.textContent = `PVP: €${precio.toFixed(2)}`;
+        } else {
+            codeNode.textContent = codigoIngresado;
+            nameNode.textContent = 'No encontrado en catálogo';
+            priceNode.textContent = '';
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx && ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        celda.classList.add('filled');
+    }
+
+    document.querySelectorAll('.cell-input').forEach((input) => {
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                actualizarCelda(input);
+            }
+        });
+
+        input.addEventListener('blur', () => actualizarCelda(input));
+
+        input.closest('.grid-cell')?.addEventListener('dblclick', () => {
+            input.closest('.grid-cell')?.classList.remove('filled');
+            input.focus();
+            input.select();
+        });
+    });
+</script>
+{% endblock %}
