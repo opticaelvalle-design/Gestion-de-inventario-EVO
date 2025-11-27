@@ -2328,6 +2328,13 @@ def exportar_informes():
     )
 
 
+@app.route("/plantilla-etiquetas")
+def plantilla_etiquetas():
+    """Vista para la plantilla de impresión en A4."""
+
+    return render_template("plantilla_etiquetas.html")
+
+
 @app.route("/exportar-informes/descargar")
 def descargar_informe():
     headers = ["Código", "Nombre", "Cantidad", "Ubicación"]
