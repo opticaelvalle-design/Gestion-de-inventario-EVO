@@ -4,13 +4,80 @@
 <style>
     .page-container {
         background: #f5f6fa;
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .layout-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    .info-card {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+        padding: 1.25rem 1.5rem;
+        display: grid;
+        gap: 1rem;
+    }
+
+    .info-card h3 {
+        margin: 0;
+        color: #273c75;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.75rem 1rem;
+    }
+
+    .info-item {
+        background: #f5f6fa;
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        display: grid;
+        gap: 0.15rem;
+    }
+
+    .info-item span {
+        font-size: 0.95rem;
+        color: #57606f;
+    }
+
+    .info-item strong {
+        color: #2f3640;
     }
 
     .print-actions {
         display: flex;
-        justify-content: flex-end;
-        margin-bottom: 1rem;
+        align-items: center;
         gap: 0.75rem;
+    }
+
+    .print-actions button {
+        background: #273c75;
+        color: #fff;
+        border: none;
+        padding: 0.65rem 1rem;
+        border-radius: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 10px 24px rgba(39, 60, 117, 0.25);
+    }
+
+    .print-actions button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 30px rgba(39, 60, 117, 0.35);
+    }
+
+    .a4-wrapper {
+        display: flex;
+        justify-content: center;
     }
 
     .a4-sheet {
@@ -20,6 +87,9 @@
         background: #fff;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
         padding: 10mm 5mm;
+        display: flex;
+        justify-content: center;
+        align-items: center;
     }
 
     .grid-labels {
@@ -27,34 +97,57 @@
         grid-template-columns: repeat(6, 33mm);
         grid-auto-rows: 10mm;
         gap: 0;
-        border: 1px solid #dcdde1;
         width: max-content;
+        border: 1px dashed #dcdde1;
     }
 
     .grid-cell {
-        border: 1px solid #dcdde1;
         width: 33mm;
         height: 10mm;
+        border: 1px dashed #e6e9ef;
     }
 
     .page-note {
         color: #57606f;
-        margin: 0.5rem 0 1rem;
+        margin: 0.25rem 0 0;
     }
 
     @media print {
         body {
             margin: 0;
+            background: #fff;
         }
-        nav, header, .messages, .print-actions, .page-note { display: none; }
-        main {
+
+        nav,
+        header,
+        .messages,
+        .page-note,
+        .content-header,
+        .info-card,
+        .print-actions {
+            display: none !important;
+        }
+
+        main,
+        .page-container,
+        .layout-grid,
+        .a4-wrapper {
             margin: 0;
             padding: 0;
+            width: 100%;
+            display: block;
         }
+
         .a4-sheet {
             box-shadow: none;
             page-break-after: avoid;
         }
+
+        .grid-labels,
+        .grid-cell {
+            border: none;
+        }
+
         @page {
             size: A4 portrait;
             margin: 10mm 5mm;
@@ -67,21 +160,45 @@
     <div class="content-header">
         <div>
             <h2>Plantilla de etiquetas</h2>
-            <p class="muted">Hoja A4 con 6 columnas y 29 filas listas para imprimir o exportar en PDF.</p>
+            <p class="muted">Hoja A4 lista para imprimir o exportar a PDF con 6 columnas y 29 filas.</p>
         </div>
     </div>
 
-    <div class="print-actions">
-        <button onclick="window.print()">Exportar PDF</button>
-    </div>
+    <div class="layout-grid">
+        <div class="info-card">
+            <div class="print-actions">
+                <button type="button" onclick="window.print()">Exportar PDF</button>
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span>Tamaño de hoja</span>
+                    <strong>A4 (210mm x 297mm)</strong>
+                </div>
+                <div class="info-item">
+                    <span>Márgenes</span>
+                    <strong>Superior/Inferior: 10mm · Lateral: 5mm</strong>
+                </div>
+                <div class="info-item">
+                    <span>Rejilla</span>
+                    <strong>6 columnas × 29 filas</strong>
+                </div>
+                <div class="info-item">
+                    <span>Dimensión de celda</span>
+                    <strong>33mm de ancho × 10mm de alto</strong>
+                </div>
+            </div>
+            <p class="page-note">Al imprimir o exportar a PDF solo se incluye la hoja A4 con la rejilla (sin bordes visibles en las
+ celdas).</p>
+        </div>
 
-    <p class="page-note">Los márgenes superior e inferior son de 10mm y los laterales de 5mm. Cada celda mide 33mm de ancho y 10mm de alto.</p>
-
-    <div class="a4-sheet" aria-label="Hoja A4 con plantilla de etiquetas">
-        <div class="grid-labels">
-            {% for _ in range(29 * 6) %}
-            <div class="grid-cell"></div>
-            {% endfor %}
+        <div class="a4-wrapper">
+            <div class="a4-sheet" aria-label="Hoja A4 con plantilla de etiquetas">
+                <div class="grid-labels">
+                    {% for _ in range(29 * 6) %}
+                    <div class="grid-cell"></div>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
     </div>
 </section>
