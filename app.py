@@ -26,256 +26,6 @@ lecturas_historial = []
 # Registro cronológico de todas las lecturas realizadas
 lecturas_registradas = []
 
-# Datos iniciales para la demostración de funcionalidades
-INITIAL_STORAGE_LOCATIONS = [
-    {
-        "nombre": "Gaveta A1",
-        "tipo": "Gaveta",
-        "created_at": datetime(2024, 1, 10, 10, 30),
-    },
-    {
-        "nombre": "Baldas Zona B",
-        "tipo": "Baldas",
-        "created_at": datetime(2024, 2, 5, 8, 15),
-    },
-]
-
-INITIAL_INVENTORY = [
-    {
-        "codigo": "ABC123",
-        "nombre": "Tornillo M4",
-        "tipo": "Fijación",
-        "precio_pvo": 0.08,
-        "precio_pvp": 0.24,
-        "cantidad": 150,
-        "ubicacion": "Gaveta A1",
-    },
-    {
-        "codigo": "XYZ789",
-        "nombre": "Arandela 12mm",
-        "tipo": "Fijación",
-        "precio_pvo": 0.04,
-        "precio_pvp": 0.15,
-        "cantidad": 60,
-        "ubicacion": "Baldas Zona B",
-    },
-    {
-        "codigo": "LMN456",
-        "nombre": "Destornillador plano",
-        "tipo": "Herramienta",
-        "precio_pvo": 0.0,
-        "precio_pvp": 0.0,
-        "cantidad": 15,
-        "ubicacion": "Gaveta A1",
-    },
-]
-
-INITIAL_PURCHASE_ORDERS = [
-    {
-        "id": 5001,
-        "nombre": "Reposición urgente Atlas",
-        "cliente": "Electrodomésticos Atlas",
-        "fecha": datetime(2024, 3, 8, 9, 45),
-        "estado": "Parcial",
-        "notas": "Reposición urgente para la línea de montaje principal.",
-        "lineas": [
-            {
-                "codigo": "ABC123",
-                "descripcion": "Tornillo M4",
-                "cantidad_pedida": 150,
-                "cantidad_recibida": 80,
-                "cantidad_pendiente": 70,
-            },
-            {
-                "codigo": "LMN456",
-                "descripcion": "Destornillador plano",
-                "cantidad_pedida": 25,
-                "cantidad_recibida": 25,
-                "cantidad_pendiente": 0,
-            },
-        ],
-    },
-    {
-        "id": 5002,
-        "nombre": "Pedido Solaris nuevo centro",
-        "cliente": "Solaris Components",
-        "fecha": datetime(2024, 3, 15, 14, 10),
-        "estado": "Pendiente",
-        "notas": "Pedido programado para el nuevo centro logístico.",
-        "lineas": [
-            {
-                "codigo": "XYZ789",
-                "descripcion": "Arandela 12mm",
-                "cantidad_pedida": 200,
-                "cantidad_recibida": 0,
-                "cantidad_pendiente": 200,
-            },
-            {
-                "codigo": "OPQ222",
-                "descripcion": "Llave Allen 5mm",
-                "cantidad_pedida": 60,
-                "cantidad_recibida": 20,
-                "cantidad_pendiente": 40,
-            },
-        ],
-    },
-    {
-        "id": 5003,
-        "nombre": "Cierre proyecto Boreal",
-        "cliente": "Ingeniería Boreal",
-        "fecha": datetime(2024, 3, 20, 11, 5),
-        "estado": "Completado",
-        "notas": "Cierre de proyecto piloto con materiales sobrantes.",
-        "lineas": [
-            {
-                "codigo": "RST987",
-                "descripcion": "Taladro inalámbrico",
-                "cantidad_pedida": 10,
-                "cantidad_recibida": 10,
-                "cantidad_pendiente": 0,
-            },
-            {
-                "codigo": "UVW654",
-                "descripcion": "Guantes anti corte",
-                "cantidad_pedida": 80,
-                "cantidad_recibida": 80,
-                "cantidad_pendiente": 0,
-            },
-        ],
-    },
-]
-
-INITIAL_DELIVERY_NOTES = [
-    {
-        "id": 7001,
-        "numero": "ALB-2024-001",
-        "fecha": datetime(2024, 4, 2, 16, 45),
-        "proveedor": "Componentes Boreal",
-        "fabrica": "Planta Norte",
-        "precio_transporte": 125.0,
-        "lineas": [
-            {
-                "codigo": "ABC123",
-                "nombre": "Tornillo M4",
-                "tipo": "Fijación",
-                "precio_pvo": 0.08,
-                "precio_pvp": 0.24,
-                "cantidad": 80,
-            },
-            {
-                "codigo": "XYZ789",
-                "nombre": "Arandela 12mm",
-                "tipo": "Fijación",
-                "precio_pvo": 0.04,
-                "precio_pvp": 0.15,
-                "cantidad": 200,
-            },
-            {
-                "codigo": "OPQ222",
-                "nombre": "Llave Allen 5mm",
-                "tipo": "Herramienta",
-                "precio_pvo": 0.95,
-                "precio_pvp": 2.1,
-                "cantidad": 35,
-            },
-        ],
-    },
-    {
-        "id": 7002,
-        "numero": "ALB-2024-002",
-        "fecha": datetime(2024, 4, 8, 10, 20),
-        "proveedor": "Tecno Sur",
-        "fabrica": "Centro de Distribución Este",
-        "precio_transporte": 210.0,
-        "lineas": [
-            {
-                "codigo": "RST987",
-                "nombre": "Taladro inalámbrico",
-                "tipo": "Herramienta",
-                "precio_pvo": 48.0,
-                "precio_pvp": 79.0,
-                "cantidad": 12,
-            },
-            {
-                "codigo": "UVW654",
-                "nombre": "Guantes anti corte",
-                "tipo": "Protección",
-                "precio_pvo": 3.2,
-                "precio_pvp": 6.5,
-                "cantidad": 90,
-            },
-        ],
-    },
-    {
-        "id": 7003,
-        "numero": "ALB-2024-003",
-        "fecha": datetime(2024, 4, 18, 9, 5),
-        "proveedor": "Logística Atlántico",
-        "fabrica": "Planta Central",
-        "precio_transporte": 95.0,
-        "lineas": [
-            {
-                "codigo": "LMN456",
-                "nombre": "Destornillador plano",
-                "tipo": "Herramienta",
-                "precio_pvo": 4.5,
-                "precio_pvp": 8.9,
-                "cantidad": 25,
-            },
-            {
-                "codigo": "ABC123",
-                "nombre": "Tornillo M4",
-                "tipo": "Fijación",
-                "precio_pvo": 0.08,
-                "precio_pvp": 0.24,
-                "cantidad": 120,
-            },
-        ],
-    },
-]
-
-INITIAL_OPTICA_STOCK = {
-    "Blanca": [
-        {
-            "codigo": "OP-1001",
-            "nombre": "Gafa metalica clásica",
-            "tipo": "Montura",
-            "precio_mayor": 42.0,
-            "precio_pvp": 89.0,
-            "cantidad": 12,
-        },
-        {
-            "codigo": "OP-2002",
-            "nombre": "Lente contacto diaria",
-            "tipo": "Lentes",
-            "precio_mayor": 18.0,
-            "precio_pvp": 36.0,
-            "cantidad": 40,
-        },
-    ],
-    "Abarán": [
-        {
-            "codigo": "OP-3003",
-            "nombre": "Gafa pasta retro",
-            "tipo": "Montura",
-            "precio_mayor": 38.0,
-            "precio_pvp": 79.0,
-            "cantidad": 8,
-        }
-    ],
-    "Bajo": [
-        {
-            "codigo": "OP-4004",
-            "nombre": "Spray antivaho",
-            "tipo": "Accesorio",
-            "precio_mayor": 4.5,
-            "precio_pvp": 9.5,
-            "cantidad": 22,
-        }
-    ],
-    "Murcia": [],
-}
-
 storage_locations = []
 inventory_items = []
 purchase_orders = []
@@ -356,19 +106,11 @@ def _traspasar_a_sucursal(origen: str, destino: str, producto: dict, cantidad: i
 
 
 def _inicializar_optica_demo():
-    for sucursal, productos in INITIAL_OPTICA_STOCK.items():
+    """Deja los inventarios óptica vacíos para trabajar solo con datos reales."""
+
+    for sucursal in OPTICA_BRANCHES:
         inventario = _asegurar_sucursal_optica(sucursal)
         inventario.clear()
-        for producto in productos:
-            _crear_producto_optica(
-                sucursal,
-                producto["codigo"],
-                producto["nombre"],
-                producto.get("tipo", ""),
-                float(producto.get("precio_mayor", 0)),
-                float(producto.get("precio_pvp", 0)),
-                int(producto.get("cantidad", 0)),
-            )
 
 
 def _importar_excel_optica(archivo, sucursal: str):
@@ -652,107 +394,9 @@ def _migrate_purchase_orders_schema():
 
 
 def _seed_if_empty():
-    with get_connection() as conn:
-        cursor = conn.execute("SELECT COUNT(*) FROM storage_locations")
-        if cursor.fetchone()[0] == 0:
-            conn.executemany(
-                "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
-                [
-                    (item["nombre"], item["tipo"], item["created_at"].isoformat())
-                    for item in INITIAL_STORAGE_LOCATIONS
-                ],
-            )
+    """Inicializa tablas sin insertar datos de demostración."""
 
-        cursor = conn.execute("SELECT COUNT(*) FROM inventory_items")
-        if cursor.fetchone()[0] == 0:
-            conn.executemany(
-                """
-                INSERT INTO inventory_items (codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad, ubicacion)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        item["codigo"],
-                        item["nombre"],
-                        item.get("tipo", ""),
-                        float(item.get("precio_pvo", 0)),
-                        float(item.get("precio_pvp", 0)),
-                        item["cantidad"],
-                        item["ubicacion"],
-                    )
-                    for item in INITIAL_INVENTORY
-                ],
-            )
-
-        cursor = conn.execute("SELECT COUNT(*) FROM purchase_orders")
-        if cursor.fetchone()[0] == 0:
-            for pedido in INITIAL_PURCHASE_ORDERS:
-                conn.execute(
-                    "INSERT INTO purchase_orders (id, nombre, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?, ?)",
-                    (
-                        pedido["id"],
-                        pedido["nombre"],
-                        pedido["cliente"],
-                        pedido["fecha"].isoformat(),
-                        pedido["estado"],
-                        pedido["notas"],
-                    ),
-                )
-                conn.executemany(
-                    """
-                    INSERT INTO purchase_order_lines (
-                        pedido_id, codigo, descripcion, cantidad_pedida, cantidad_recibida, cantidad_pendiente
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        (
-                            pedido["id"],
-                            linea["codigo"],
-                            linea["descripcion"],
-                            linea["cantidad_pedida"],
-                            linea["cantidad_recibida"],
-                            linea["cantidad_pendiente"],
-                        )
-                        for linea in pedido["lineas"]
-                    ],
-                )
-
-        cursor = conn.execute("SELECT COUNT(*) FROM delivery_notes")
-        if cursor.fetchone()[0] == 0:
-            for albaran in INITIAL_DELIVERY_NOTES:
-                conn.execute(
-                    """
-                    INSERT INTO delivery_notes (id, numero, fecha, proveedor, fabrica, precio_transporte)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        albaran["id"],
-                        albaran["numero"],
-                        albaran["fecha"].isoformat(),
-                        albaran["proveedor"],
-                        albaran["fabrica"],
-                        albaran["precio_transporte"],
-                    ),
-                )
-                conn.executemany(
-                    """
-                    INSERT INTO delivery_note_lines (
-                        albaran_id, codigo, nombre, tipo, precio_pvo, precio_pvp, cantidad
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        (
-                            albaran["id"],
-                            linea["codigo"],
-                            linea["nombre"],
-                            linea["tipo"],
-                            linea["precio_pvo"],
-                            linea["precio_pvp"],
-                            linea["cantidad"],
-                        )
-                        for linea in albaran["lineas"]
-                    ],
-                )
+    # Las tablas se crean vacías; la aplicación opera exclusivamente con datos reales.
 
 
 def _load_data():
@@ -2277,6 +1921,167 @@ def historial_lecturas():
     )
 
 
+def _descripcion_por_codigo(codigo: str) -> str:
+    articulo = next(
+        (item for item in inventory_items if item["codigo"].lower() == codigo.lower()),
+        None,
+    )
+    return articulo["nombre"] if articulo else codigo
+
+
+def _leer_pedidos_excel(archivo: io.BytesIO):
+    try:
+        workbook = load_workbook(archivo, data_only=True)
+    except Exception as exc:  # pragma: no cover - validación defensiva
+        raise ValueError("No se pudo leer el Excel. Verifica el formato.") from exc
+
+    sheet = workbook.active
+    rows = list(sheet.iter_rows(values_only=True))
+    if not rows:
+        raise ValueError("El archivo está vacío.")
+
+    headers = [
+        str(cell).strip().lower() if cell is not None else "" for cell in rows[0]
+    ]
+    header_map = {nombre: idx for idx, nombre in enumerate(headers)}
+    required_headers = {"pedido", "cliente", "codigo", "cantidad"}
+
+    if not required_headers.issubset(header_map):
+        raise ValueError(
+            "La plantilla debe incluir las columnas: pedido, cliente, codigo y cantidad."
+        )
+
+    def _leer_valor(row, key, default=None):
+        idx = header_map.get(key)
+        if idx is None or idx >= len(row):
+            return default
+        valor = row[idx]
+        if valor is None:
+            return default
+        return valor
+
+    resumen = {"procesadas": 0, "omitidas": 0}
+    pedidos_encontrados: dict[tuple[str, str], dict] = {}
+
+    for row in rows[1:]:
+        if all(cell is None or str(cell).strip() == "" for cell in row):
+            continue
+
+        resumen["procesadas"] += 1
+        pedido_nombre = str(_leer_valor(row, "pedido", "")).strip()
+        cliente = str(_leer_valor(row, "cliente", "")).strip()
+        codigo = str(_leer_valor(row, "codigo", "")).strip()
+        cantidad_valor = _leer_valor(row, "cantidad", 0)
+
+        try:
+            cantidad = int(float(cantidad_valor))
+        except (TypeError, ValueError):
+            cantidad = -1
+
+        if not pedido_nombre or not cliente or not codigo or cantidad <= 0:
+            resumen["omitidas"] += 1
+            continue
+
+        clave_pedido = (pedido_nombre.lower(), cliente.lower())
+        pedido = pedidos_encontrados.setdefault(
+            clave_pedido, {"nombre": pedido_nombre, "cliente": cliente, "lineas": {}}
+        )
+
+        linea = pedido["lineas"].get(codigo.lower())
+        if linea:
+            linea["cantidad"] += cantidad
+        else:
+            pedido["lineas"][codigo.lower()] = {"codigo": codigo, "cantidad": cantidad}
+
+    pedidos_list = [
+        {"nombre": datos["nombre"], "cliente": datos["cliente"], "lineas": list(datos["lineas"].values())}
+        for datos in pedidos_encontrados.values()
+    ]
+
+    return pedidos_list, resumen
+
+
+def _registrar_pedidos_importados(pedidos_desde_excel: list[dict]):
+    resultados = {
+        "pedidos_creados": 0,
+        "lineas_creadas": 0,
+        "lineas_actualizadas": 0,
+    }
+
+    for pedido_excel in pedidos_desde_excel:
+        existente = next(
+            (
+                pedido
+                for pedido in purchase_orders
+                if pedido["nombre"].lower() == pedido_excel["nombre"].lower()
+                and pedido["cliente"].lower() == pedido_excel["cliente"].lower()
+            ),
+            None,
+        )
+
+        if existente:
+            pedido_objetivo = existente
+        else:
+            nuevo_id = max((pedido["id"] for pedido in purchase_orders), default=0) + 1
+            pedido_objetivo = {
+                "id": nuevo_id,
+                "nombre": pedido_excel["nombre"],
+                "cliente": pedido_excel["cliente"],
+                "fecha": datetime.now(),
+                "estado": "Pendiente",
+                "notas": "Importado desde XLSX.",
+                "lineas": [],
+            }
+            purchase_orders.append(pedido_objetivo)
+            with get_connection() as conn:
+                conn.execute(
+                    "INSERT INTO purchase_orders (id, nombre, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        pedido_objetivo["id"],
+                        pedido_objetivo["nombre"],
+                        pedido_objetivo["cliente"],
+                        pedido_objetivo["fecha"].isoformat(),
+                        pedido_objetivo["estado"],
+                        pedido_objetivo["notas"],
+                    ),
+                )
+            resultados["pedidos_creados"] += 1
+
+        for linea_excel in pedido_excel.get("lineas", []):
+            codigo = linea_excel.get("codigo", "")
+            cantidad = linea_excel.get("cantidad", 0)
+            descripcion = _descripcion_por_codigo(codigo)
+
+            linea_existente = next(
+                (
+                    linea
+                    for linea in pedido_objetivo["lineas"]
+                    if linea["codigo"].lower() == codigo.lower()
+                ),
+                None,
+            )
+
+            if linea_existente:
+                linea_existente["cantidad_pedida"] += cantidad
+                linea_existente["cantidad_pendiente"] += cantidad
+                linea_existente["descripcion"] = linea_existente.get("descripcion") or descripcion
+                _persistir_linea_pedido(pedido_objetivo["id"], linea_existente)
+                resultados["lineas_actualizadas"] += 1
+            else:
+                nueva_linea = {
+                    "codigo": codigo,
+                    "descripcion": descripcion,
+                    "cantidad_pedida": cantidad,
+                    "cantidad_recibida": 0,
+                    "cantidad_pendiente": cantidad,
+                }
+                pedido_objetivo["lineas"].append(nueva_linea)
+                _insertar_linea_pedido(pedido_objetivo["id"], nueva_linea)
+                resultados["lineas_creadas"] += 1
+
+    return resultados
+
+
 @app.route("/subir-excel", methods=["GET", "POST"])
 def subir_excel():
     resumen = None
@@ -2288,13 +2093,30 @@ def subir_excel():
             flash("Formato no soportado. Usa un archivo XLSX.", "error")
         else:
             contenido = archivo.read()
-            archivo.seek(0)
-            resumen = {
-                "nombre": archivo.filename,
-                "tamano_kb": round(len(contenido) / 1024, 2),
-                "procesado": True,
-            }
-            flash("Archivo recibido. Procesamiento simulado completado.", "success")
+            try:
+                pedidos_desde_excel, estadisticas = _leer_pedidos_excel(io.BytesIO(contenido))
+            except ValueError as exc:
+                flash(str(exc), "error")
+            else:
+                if not estadisticas["procesadas"]:
+                    flash(
+                        "No se encontraron filas de datos en el archivo.",
+                        "error",
+                    )
+                else:
+                    resultados = _registrar_pedidos_importados(pedidos_desde_excel)
+                    resumen = {
+                        "nombre": archivo.filename,
+                        "tamano_kb": round(len(contenido) / 1024, 2),
+                        "procesado": True,
+                        "pedidos_detectados": len(pedidos_desde_excel),
+                        "filas_procesadas": estadisticas["procesadas"],
+                        "filas_omitidas": estadisticas["omitidas"],
+                        **resultados,
+                    }
+                    flash(
+                        "Pedidos importados correctamente desde el XLSX.", "success"
+                    )
 
     return render_template("subir_excel.html", resumen=resumen)
 
@@ -2302,11 +2124,7 @@ def subir_excel():
 @app.route("/subir-excel/plantilla")
 def descargar_plantilla_excel():
     headers = ["pedido", "cliente", "codigo", "cantidad"]
-    rows = [
-        ["PED-1001", "Óptica Centro", "ABC123", 25],
-        ["PED-1002", "Óptica Norte", "XYZ789", 12],
-        ["PED-1003", "Óptica Sur", "LMN456", 4],
-    ]
+    rows: list[list] = []
 
     output = _crear_excel(headers, rows, "Plantilla pedidos")
     return send_file(

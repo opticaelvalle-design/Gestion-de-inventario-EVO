@@ -50,6 +50,30 @@
                 <th>Estado</th>
                 <td>{% if resumen.procesado %}Procesado correctamente{% else %}Pendiente{% endif %}</td>
             </tr>
+            <tr>
+                <th>Pedidos detectados</th>
+                <td>{{ resumen.pedidos_detectados }}</td>
+            </tr>
+            <tr>
+                <th>Filas procesadas</th>
+                <td>{{ resumen.filas_procesadas }}</td>
+            </tr>
+            <tr>
+                <th>Filas omitidas</th>
+                <td>{{ resumen.filas_omitidas }}</td>
+            </tr>
+            <tr>
+                <th>Pedidos creados</th>
+                <td>{{ resumen.pedidos_creados }}</td>
+            </tr>
+            <tr>
+                <th>Líneas nuevas</th>
+                <td>{{ resumen.lineas_creadas }}</td>
+            </tr>
+            <tr>
+                <th>Líneas actualizadas</th>
+                <td>{{ resumen.lineas_actualizadas }}</td>
+            </tr>
         </tbody>
     </table>
 {% endif %}
