@@ -83,6 +83,7 @@
                     <th>Cliente</th>
                     <th>Fecha</th>
                     <th>Estado</th>
+                    <th>Lectura</th>
                     <th>Líneas</th>
                     <th>Unidades pedidas</th>
                     <th>Unidades pendientes</th>
@@ -100,6 +101,9 @@
                     <td>
                         {% set estado = pedido.estado.lower() %}
                         <span class="badge {% if 'pend' in estado %}badge-warning{% elif 'recib' in estado %}badge-success{% else %}badge-neutral{% endif %}">{{ pedido.estado }}</span>
+                    </td>
+                    <td>
+                        <span class="badge {% if pedido.estado_apertura.lower() == 'abierto' %}badge-success{% else %}badge-neutral{% endif %}">{{ pedido.estado_apertura }}</span>
                     </td>
                     <td>{{ pedido.lineas|length }}</td>
                     <td>{{ pedido.lineas | sum(attribute='cantidad_pedida') }}</td>

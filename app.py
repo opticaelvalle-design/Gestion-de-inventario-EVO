@@ -270,7 +270,8 @@ def _init_db_schema():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre TEXT UNIQUE NOT NULL,
                 tipo TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                estado TEXT NOT NULL DEFAULT 'Abierta'
             );
 
             CREATE TABLE IF NOT EXISTS inventory_items (
@@ -291,6 +292,7 @@ def _init_db_schema():
                 cliente TEXT NOT NULL,
                 fecha TEXT NOT NULL,
                 estado TEXT NOT NULL,
+                estado_apertura TEXT NOT NULL DEFAULT 'Abierto',
                 notas TEXT
             );
 
@@ -335,7 +337,8 @@ def _init_db_schema():
                 unidades INTEGER NOT NULL,
                 gaveta_nombre TEXT NOT NULL,
                 gaveta_tipo TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                estado TEXT NOT NULL DEFAULT 'Abierta'
             );
             """
         )
@@ -392,6 +395,35 @@ def _migrate_purchase_orders_schema():
         if "nombre" not in columns:
             conn.execute("ALTER TABLE purchase_orders ADD COLUMN nombre TEXT DEFAULT ''")
 
+        if "estado_apertura" not in columns:
+            conn.execute(
+                "ALTER TABLE purchase_orders ADD COLUMN estado_apertura TEXT DEFAULT 'Abierto'"
+            )
+
+
+def _migrate_storage_locations_schema():
+    with get_connection() as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info('storage_locations')")}
+        if not columns:
+            return
+
+        if "estado" not in columns:
+            conn.execute(
+                "ALTER TABLE storage_locations ADD COLUMN estado TEXT DEFAULT 'Abierta'"
+            )
+
+
+def _migrate_gaveta_asignaciones_schema():
+    with get_connection() as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info('gaveta_asignaciones')")}
+        if not columns:
+            return
+
+        if "estado" not in columns:
+            conn.execute(
+                "ALTER TABLE gaveta_asignaciones ADD COLUMN estado TEXT DEFAULT 'Abierta'"
+            )
+
 
 def _seed_if_empty():
     """Inicializa tablas sin insertar datos de demostración."""
@@ -407,6 +439,7 @@ def _load_data():
                 "nombre": row["nombre"],
                 "tipo": row["tipo"],
                 "created_at": _as_datetime(row["created_at"]),
+                "estado": row["estado"] if "estado" in row.keys() else "Abierta",
             }
             for row in conn.execute(
                 "SELECT nombre, tipo, created_at FROM storage_locations ORDER BY created_at"
@@ -434,7 +467,7 @@ def _load_data():
 
         purchase_orders = []
         pedidos_rows = conn.execute(
-            "SELECT id, nombre, cliente, fecha, estado, notas FROM purchase_orders ORDER BY fecha"
+            "SELECT id, nombre, cliente, fecha, estado, estado_apertura, notas FROM purchase_orders ORDER BY fecha"
         ).fetchall()
         for pedido in pedidos_rows:
             lineas = [
@@ -461,6 +494,9 @@ def _load_data():
                     "fecha": _as_datetime(pedido["fecha"]),
                     "estado": pedido["estado"],
                     "notas": pedido["notas"],
+                    "estado_apertura": pedido["estado_apertura"]
+                    if "estado_apertura" in pedido.keys()
+                    else "Abierto",
                     "lineas": lineas,
                 }
             )
@@ -516,7 +552,9 @@ def _load_data():
                     "nombre": row["gaveta_nombre"],
                     "tipo": row["gaveta_tipo"],
                     "created_at": _as_datetime(row["created_at"]),
+                    "estado": row["estado"] if "estado" in row.keys() else "Abierta",
                 },
+                "estado": row["estado"] if "estado" in row.keys() else "Abierta",
             }
             for row in asignaciones_rows
         }
@@ -527,6 +565,8 @@ def ensure_database():
     _init_db_schema()
     _migrate_inventory_schema()
     _migrate_purchase_orders_schema()
+    _migrate_storage_locations_schema()
+    _migrate_gaveta_asignaciones_schema()
     _seed_if_empty()
     _load_data()
 
@@ -881,15 +921,17 @@ def crear_gavetas():
                 "nombre": nombre,
                 "tipo": tipo,
                 "created_at": datetime.now(),
+                "estado": "Abierta",
             }
             storage_locations.append(nueva_ubicacion)
             with get_connection() as conn:
                 conn.execute(
-                    "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
+                    "INSERT INTO storage_locations (nombre, tipo, created_at, estado) VALUES (?, ?, ?, ?)",
                     (
                         nueva_ubicacion["nombre"],
                         nueva_ubicacion["tipo"],
                         nueva_ubicacion["created_at"].isoformat(),
+                        nueva_ubicacion["estado"],
                     ),
                 )
             flash("Ubicación registrada correctamente.", "success")
@@ -918,6 +960,7 @@ def exportar_gavetas():
             asignacion["unidades"]
             for asignacion in gaveta_asignaciones.values()
             if asignacion["gaveta"]["nombre"].lower() == ubicacion["nombre"].lower()
+            and _gaveta_activa(asignacion)
         )
         rows.append(
             [
@@ -1025,6 +1068,17 @@ def exportar_gaveta_csv(nombre: str):
         as_attachment=True,
         download_name=filename,
     )
+
+
+@app.route("/crear-gavetas/<path:nombre>/estado", methods=["POST"])
+def actualizar_estado_gaveta(nombre: str):
+    nuevo_estado = request.form.get("estado", "Abierta")
+    ubicacion = _actualizar_estado_gaveta(nombre, nuevo_estado)
+    if not ubicacion:
+        flash("No se encontró la gaveta solicitada.", "error")
+    else:
+        flash(f"Estado de la gaveta actualizado a {ubicacion['estado']}.", "success")
+    return redirect(url_for("gaveta_detalle", nombre=nombre))
 
 
 @app.route("/crear-gavetas/<path:nombre>/renombrar", methods=["POST"])
@@ -1143,7 +1197,12 @@ def gaveta_detalle(nombre: str):
     ]
     asignaciones_gaveta.sort(key=lambda asignacion: (asignacion["pedido_id"], asignacion["codigo"].lower()))
     total_unidades_inventario = sum(item["cantidad"] for item in articulos)
-    total_unidades_asignadas = sum(asignacion["unidades"] for asignacion in asignaciones_gaveta)
+    asignaciones_activas = [
+        asignacion for asignacion in asignaciones_gaveta if _gaveta_activa(asignacion)
+    ]
+    total_unidades_asignadas = sum(
+        asignacion["unidades"] for asignacion in asignaciones_activas
+    )
     total_unidades = total_unidades_inventario + total_unidades_asignadas
 
     return render_template(
@@ -1191,6 +1250,13 @@ def _clave_gaveta(pedido_id: int, codigo: str):
     return (pedido_id, codigo.lower())
 
 
+def _gaveta_activa(asignacion: dict):
+    return (
+        asignacion.get("estado", "Abierta").lower() == "abierta"
+        and asignacion.get("gaveta", {}).get("estado", "Abierta").lower() == "abierta"
+    )
+
+
 def _generar_nombre_gaveta() -> str:
     global gaveta_secuencia
     nombre = f"Gaveta #{gaveta_secuencia}"
@@ -1201,7 +1267,7 @@ def _generar_nombre_gaveta() -> str:
 def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
     clave = _clave_gaveta(pedido["id"], linea["codigo"])
     asignacion = gaveta_asignaciones.get(clave)
-    if asignacion:
+    if asignacion and _gaveta_activa(asignacion):
         return clave, asignacion, False
 
     asignacion_existente = next(
@@ -1209,7 +1275,7 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
         None,
     )
 
-    if asignacion_existente:
+    if asignacion_existente and _gaveta_activa(asignacion_existente):
         gaveta = asignacion_existente["gaveta"]
         gaveta_creada = False
     else:
@@ -1219,6 +1285,7 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
                 for ubicacion in storage_locations
                 if ubicacion["tipo"].lower() == "gaveta"
                 and ubicacion["nombre"].lower() == pedido["nombre"].lower()
+                and ubicacion.get("estado", "Abierta").lower() == "abierta"
             ),
             None,
         )
@@ -1227,7 +1294,10 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
             gaveta = gaveta_existente
             gaveta_creada = False
         else:
-            gaveta = _asegurar_gaveta_existente(pedido["nombre"])
+            nombre_gaveta = (
+                pedido["nombre"] if not asignacion else _generar_nombre_gaveta()
+            )
+            gaveta = _asegurar_gaveta_existente(nombre_gaveta)
             gaveta_creada = True
 
     fecha_creacion_gaveta = (
@@ -1241,13 +1311,14 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
         "descripcion": linea.get("descripcion") or linea.get("nombre", linea["codigo"]),
         "unidades": 0,
         "gaveta": gaveta,
+        "estado": "Abierta",
     }
     gaveta_asignaciones[clave] = asignacion
     with get_connection() as conn:
         conn.execute(
             """
-            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at, estado)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 asignacion["pedido_id"],
@@ -1258,6 +1329,7 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
                 gaveta["nombre"],
                 gaveta["tipo"],
                 fecha_creacion_gaveta.isoformat(),
+                asignacion["estado"],
             ),
         )
     return clave, asignacion, gaveta_creada
@@ -1265,7 +1337,7 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
 
 def _actualizar_unidades_gaveta(clave, delta: int):
     asignacion = gaveta_asignaciones.get(clave)
-    if asignacion:
+    if asignacion and _gaveta_activa(asignacion):
         asignacion["unidades"] = max(asignacion["unidades"] + delta, 0)
         _ajustar_stock_gaveta(asignacion, delta)
         with get_connection() as conn:
@@ -1279,6 +1351,8 @@ def _actualizar_unidades_gaveta(clave, delta: int):
 def _listar_gavetas_activas():
     gavetas = {}
     for asignacion in gaveta_asignaciones.values():
+        if not _gaveta_activa(asignacion):
+            continue
         nombre = asignacion["gaveta"]["nombre"]
         registro = gavetas.setdefault(nombre, {"nombre": nombre, "unidades": 0})
         registro["unidades"] += asignacion["unidades"]
@@ -1294,12 +1368,22 @@ def _asegurar_gaveta_existente(nombre: str):
     if existente:
         return existente
 
-    nueva_gaveta = {"nombre": nombre, "tipo": "Gaveta", "created_at": datetime.now()}
+    nueva_gaveta = {
+        "nombre": nombre,
+        "tipo": "Gaveta",
+        "created_at": datetime.now(),
+        "estado": "Abierta",
+    }
     storage_locations.append(nueva_gaveta)
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO storage_locations (nombre, tipo, created_at) VALUES (?, ?, ?)",
-            (nueva_gaveta["nombre"], nueva_gaveta["tipo"], nueva_gaveta["created_at"].isoformat()),
+            "INSERT INTO storage_locations (nombre, tipo, created_at, estado) VALUES (?, ?, ?, ?)",
+            (
+                nueva_gaveta["nombre"],
+                nueva_gaveta["tipo"],
+                nueva_gaveta["created_at"].isoformat(),
+                nueva_gaveta["estado"],
+            ),
         )
     return nueva_gaveta
 
@@ -1322,8 +1406,58 @@ def _actualizar_destino_gaveta(clave, nuevo_nombre: str):
     return asignacion
 
 
-def _ajustar_stock_gaveta(asignacion: dict, delta: int):
+def _actualizar_estado_gaveta(nombre: str, nuevo_estado: str):
+    estado_normalizado = "Facturada" if nuevo_estado.lower().startswith("fact") else "Abierta"
+
+    ubicacion = next(
+        (
+            loc
+            for loc in storage_locations
+            if loc["nombre"].lower() == nombre.lower()
+            and loc["tipo"].lower() == "gaveta"
+        ),
+        None,
+    )
+    if not ubicacion:
+        return None
+
+    estado_anterior = ubicacion.get("estado", "Abierta")
+    if estado_anterior.lower() == estado_normalizado.lower():
+        return ubicacion
+
+    ajuste = -1 if estado_normalizado == "Facturada" else 1
+
+    for asignacion in gaveta_asignaciones.values():
+        if asignacion["gaveta"]["nombre"].lower() != nombre.lower():
+            continue
+
+        unidades = asignacion.get("unidades", 0)
+        if unidades:
+            _ajustar_stock_gaveta(asignacion, ajuste * unidades, force=True)
+
+        asignacion["estado"] = estado_normalizado
+        asignacion["gaveta"]["estado"] = estado_normalizado
+
+    ubicacion["estado"] = estado_normalizado
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE storage_locations SET estado = ? WHERE lower(nombre) = ?",
+            (estado_normalizado, nombre.lower()),
+        )
+        conn.execute(
+            "UPDATE gaveta_asignaciones SET estado = ? WHERE lower(gaveta_nombre) = ?",
+            (estado_normalizado, nombre.lower()),
+        )
+
+    return ubicacion
+
+
+def _ajustar_stock_gaveta(asignacion: dict, delta: int, *, force: bool = False):
     if not asignacion or delta == 0:
+        return None
+
+    if not force and not _gaveta_activa(asignacion):
         return None
 
     codigo = asignacion["codigo"]
@@ -1426,13 +1560,14 @@ def _asignar_gaveta_existente(pedido: dict, linea: dict, gaveta: dict):
         "descripcion": descripcion,
         "unidades": 0,
         "gaveta": gaveta,
+        "estado": "Abierta",
     }
     gaveta_asignaciones[clave] = nueva_asignacion
     with get_connection() as conn:
         conn.execute(
             """
-            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at, estado)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 nueva_asignacion["pedido_id"],
@@ -1443,6 +1578,7 @@ def _asignar_gaveta_existente(pedido: dict, linea: dict, gaveta: dict):
                 gaveta["nombre"],
                 gaveta["tipo"],
                 datetime.now().isoformat(),
+                nueva_asignacion["estado"],
             ),
         )
     return clave, nueva_asignacion, True
@@ -1552,6 +1688,8 @@ def _buscar_linea_por_codigo(codigo: str):
     codigo_lower = codigo.lower()
     pedidos_ordenados = sorted(purchase_orders, key=lambda pedido: pedido["fecha"])
     for pedido in pedidos_ordenados:
+        if pedido.get("estado_apertura", "Abierto").lower() != "abierto":
+            continue
         for linea in pedido["lineas"]:
             if linea["codigo"].lower() == codigo_lower and linea["cantidad_pendiente"] > 0:
                 return pedido, linea
@@ -2029,19 +2167,21 @@ def _registrar_pedidos_importados(pedidos_desde_excel: list[dict]):
                 "cliente": pedido_excel["cliente"],
                 "fecha": datetime.now(),
                 "estado": "Pendiente",
+                "estado_apertura": "Abierto",
                 "notas": "Importado desde XLSX.",
                 "lineas": [],
             }
             purchase_orders.append(pedido_objetivo)
             with get_connection() as conn:
                 conn.execute(
-                    "INSERT INTO purchase_orders (id, nombre, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO purchase_orders (id, nombre, cliente, fecha, estado, estado_apertura, notas) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
                         pedido_objetivo["id"],
                         pedido_objetivo["nombre"],
                         pedido_objetivo["cliente"],
                         pedido_objetivo["fecha"].isoformat(),
                         pedido_objetivo["estado"],
+                        pedido_objetivo["estado_apertura"],
                         pedido_objetivo["notas"],
                     ),
                 )
@@ -2547,19 +2687,21 @@ def pedidos():
                 "cliente": cliente,
                 "fecha": datetime.now(),
                 "estado": "Pendiente",
+                "estado_apertura": "Abierto",
                 "notas": "Creado manualmente desde la pantalla de pedidos.",
                 "lineas": [nueva_linea],
             }
             purchase_orders.append(nuevo_pedido)
             with get_connection() as conn:
                 conn.execute(
-                    "INSERT INTO purchase_orders (id, nombre, cliente, fecha, estado, notas) VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO purchase_orders (id, nombre, cliente, fecha, estado, estado_apertura, notas) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
                         nuevo_pedido["id"],
                         nuevo_pedido["nombre"],
                         nuevo_pedido["cliente"],
                         nuevo_pedido["fecha"].isoformat(),
                         nuevo_pedido["estado"],
+                        nuevo_pedido["estado_apertura"],
                         nuevo_pedido["notas"],
                     ),
                 )
@@ -2626,11 +2768,15 @@ def editar_pedido(pedido_id: int):
     cliente = request.form.get("cliente", "").strip()
     nombre = request.form.get("nombre", "").strip()
     estado = request.form.get("estado", "").strip()
+    estado_apertura = request.form.get("estado_apertura", "").strip()
     notas = request.form.get("notas", "").strip()
     fecha_str = request.form.get("fecha", "").strip()
 
-    if not cliente or not nombre or not estado or not fecha_str:
-        flash("Completa nombre, cliente, estado y fecha para actualizar el pedido.", "error")
+    if not cliente or not nombre or not estado or not estado_apertura or not fecha_str:
+        flash(
+            "Completa nombre, cliente, estado, estado de lectura y fecha para actualizar el pedido.",
+            "error",
+        )
         return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
 
     try:
@@ -2644,6 +2790,7 @@ def editar_pedido(pedido_id: int):
             "nombre": nombre,
             "cliente": cliente,
             "estado": estado,
+            "estado_apertura": estado_apertura,
             "fecha": fecha,
             "notas": notas,
         }
@@ -2651,8 +2798,8 @@ def editar_pedido(pedido_id: int):
 
     with get_connection() as conn:
         conn.execute(
-            "UPDATE purchase_orders SET nombre = ?, cliente = ?, fecha = ?, estado = ?, notas = ? WHERE id = ?",
-            (nombre, cliente, fecha.isoformat(), estado, notas, pedido_id),
+            "UPDATE purchase_orders SET nombre = ?, cliente = ?, fecha = ?, estado = ?, estado_apertura = ?, notas = ? WHERE id = ?",
+            (nombre, cliente, fecha.isoformat(), estado, estado_apertura, notas, pedido_id),
         )
 
     flash("Pedido actualizado correctamente.", "success")
