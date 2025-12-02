@@ -1094,40 +1094,42 @@ def renombrar_gaveta(nombre: str):
 
 @app.route("/crear-gavetas/<path:nombre>/actualizar-estado", methods=["POST"])
 def actualizar_estado_gaveta(nombre: str):
-    pedido_id = request.form.get("pedido_id", type=int)
-    codigo = request.form.get("codigo", "").strip()
     estado = request.form.get("estado", "Abierta")
 
-    if not pedido_id or not codigo:
-        flash("Selecciona una asignación válida para actualizar su estado.", "error")
+    asignaciones_gaveta = [
+        asignacion
+        for asignacion in _todas_asignaciones()
+        if asignacion["gaveta"]["nombre"].lower() == nombre.lower()
+    ]
+
+    if not asignaciones_gaveta:
+        flash("Esta gaveta no tiene asignaciones para actualizar su estado.", "warning")
         return redirect(url_for("gaveta_detalle", nombre=nombre))
 
-    clave = _clave_gaveta(pedido_id, codigo)
-    asignaciones = _obtener_asignaciones(clave)
-    asignacion = next(
-        (
-            asignacion
-            for asignacion in asignaciones
-            if asignacion["gaveta"]["nombre"].lower() == nombre.lower()
-        ),
-        None,
-    )
-    if not asignacion:
-        flash("No se encontró la asignación solicitada en esta gaveta.", "error")
-        return redirect(url_for("gaveta_detalle", nombre=nombre))
+    cambios = 0
+    omitidas = 0
+    for asignacion in asignaciones_gaveta:
+        clave = _clave_gaveta(asignacion["pedido_id"], asignacion["codigo"])
+        if asignacion is not _ultima_asignacion(clave):
+            omitidas += 1
+            continue
 
-    if asignaciones and asignacion is not asignaciones[-1]:
+        if _establecer_estado_asignacion(asignacion, estado):
+            cambios += 1
+
+    if cambios:
         flash(
-            "Solo se puede actualizar el estado de la última asignación activa de ese código.",
-            "error",
+            f"Estado de la gaveta actualizado a {estado.capitalize()} para {cambios} asignaciones.",
+            "success",
         )
-        return redirect(url_for("gaveta_detalle", nombre=nombre))
-
-    cambio = _establecer_estado_asignacion(asignacion, estado)
-    if cambio:
-        flash(f"Estado actualizado a {asignacion['estado']}.", "success")
     else:
         flash("El estado ya estaba configurado con ese valor.", "info")
+
+    if omitidas:
+        flash(
+            "Algunas asignaciones históricas no se actualizaron por tener gavetas más recientes.",
+            "warning",
+        )
 
     return redirect(url_for("gaveta_detalle", nombre=nombre))
 
@@ -1216,6 +1218,8 @@ def gaveta_detalle(nombre: str):
     )
     total_unidades = total_unidades_inventario + total_unidades_asignadas
 
+    estado_gaveta = _estado_gaveta(nombre)
+
     return render_template(
         "gaveta_detalle.html",
         ubicacion=ubicacion,
@@ -1224,6 +1228,7 @@ def gaveta_detalle(nombre: str):
         total_unidades_inventario=total_unidades_inventario,
         total_unidades_asignadas=total_unidades_asignadas,
         asignaciones_gaveta=asignaciones_gaveta,
+        estado_gaveta=estado_gaveta,
     )
 
 
@@ -1396,6 +1401,26 @@ def _listar_gavetas_activas():
         registro["unidades"] += asignacion["unidades"]
 
     return sorted(gavetas.values(), key=lambda gaveta: gaveta["nombre"].lower())
+
+
+def _estado_gaveta(nombre: str) -> str:
+    asignaciones = [
+        asignacion
+        for asignacion in _todas_asignaciones()
+        if asignacion["gaveta"]["nombre"].lower() == nombre.lower()
+    ]
+    if not asignaciones:
+        return "Abierta"
+
+    asignacion_reciente = max(
+        asignaciones,
+        key=lambda asignacion: (
+            asignacion["gaveta"].get("created_at", datetime.min),
+            asignacion.get("id", 0),
+        ),
+    )
+
+    return asignacion_reciente.get("estado", "Abierta")
 
 
 def _asegurar_gaveta_existente(nombre: str):
