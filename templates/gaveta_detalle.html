@@ -1,14 +1,27 @@
 {% extends "base.html" %}
 {% block title %}{{ ubicacion.nombre }} · Gestión de Inventario EVO{% endblock %}
 {% block content %}
-<a href="{{ url_for('crear_gavetas') }}" class="button-link" style="margin-bottom: 1rem; display: inline-flex; align-items: center; gap: 0.35rem;">
-    ← Volver a gavetas
-</a>
+<div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
+    <a href="{{ url_for('crear_gavetas') }}" class="button-link" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+        ← Volver a gavetas
+    </a>
+    <form method="post" action="{{ url_for('actualizar_estado_gaveta', nombre=ubicacion.nombre) }}" class="inline-form" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+        <label for="estado" style="font-weight: 600;">Estado de gaveta</label>
+        <select id="estado" name="estado" onchange="this.form.submit()">
+            <option value="Abierta" {% if ubicacion.estado|lower == 'abierta' %}selected{% endif %}>Abierta</option>
+            <option value="Facturada" {% if ubicacion.estado|lower == 'facturada' %}selected{% endif %}>Facturada</option>
+        </select>
+        <noscript><button type="submit" class="button-link">Actualizar</button></noscript>
+    </form>
+</div>
 <section class="card" style="gap: 1rem;">
     <div>
         <h2>{{ ubicacion.nombre }}</h2>
-        <p>{{ ubicacion.tipo }} · Sin límite de unidades.</p>
+        <p>{{ ubicacion.tipo }} · Estado: {{ ubicacion.estado }} · Sin límite de unidades.</p>
         <p>Dada de alta el {{ ubicacion.created_at.strftime('%d/%m/%Y %H:%M') }}.</p>
+        {% if ubicacion.estado|lower == 'facturada' %}
+        <p class="muted" style="margin: 0;">Esta gaveta está facturada y no suma existencias. Las nuevas unidades se enviarán a la siguiente gaveta creada automáticamente.</p>
+        {% endif %}
     </div>
     <div>
         <form method="post" action="{{ url_for('renombrar_gaveta', nombre=ubicacion.nombre) }}" class="inline-form">
@@ -54,6 +67,34 @@
 </div>
 {% else %}
 <div class="empty-state">Esta gaveta todavía no tiene asignaciones creadas desde la lectura de códigos.</div>
+{% endif %}
+
+{% if asignaciones_gaveta_archivadas %}
+<h3 class="section-title">Asignaciones facturadas</h3>
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Pedido</th>
+                <th>Cliente</th>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Unidades archivadas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for asignacion in asignaciones_gaveta_archivadas %}
+            <tr>
+                <td>#{{ asignacion.pedido_id }}</td>
+                <td>{{ asignacion.cliente }}</td>
+                <td>{{ asignacion.codigo }}</td>
+                <td>{{ asignacion.descripcion }}</td>
+                <td>{{ asignacion.unidades }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endif %}
 
 <h3 class="section-title">Inventario registrado en esta ubicación</h3>
