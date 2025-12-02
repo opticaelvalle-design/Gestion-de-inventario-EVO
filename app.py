@@ -2082,11 +2082,18 @@ def _leer_pedidos_excel(archivo: io.BytesIO):
         str(cell).strip().lower() if cell is not None else "" for cell in rows[0]
     ]
     header_map = {nombre: idx for idx, nombre in enumerate(headers)}
-    required_headers = {"pedido", "cliente", "codigo", "cantidad"}
+    required_headers = {
+        "pedido",
+        "cliente",
+        "descripcion de producto",
+        "precio",
+        "codigo",
+        "cantidad",
+    }
 
     if not required_headers.issubset(header_map):
         raise ValueError(
-            "La plantilla debe incluir las columnas: pedido, cliente, codigo y cantidad."
+            "La plantilla debe incluir las columnas: pedido, cliente, descripcion de producto, precio, codigo y cantidad."
         )
 
     def _leer_valor(row, key, default=None):
@@ -2108,6 +2115,8 @@ def _leer_pedidos_excel(archivo: io.BytesIO):
         resumen["procesadas"] += 1
         pedido_nombre = str(_leer_valor(row, "pedido", "")).strip()
         cliente = str(_leer_valor(row, "cliente", "")).strip()
+        descripcion = str(_leer_valor(row, "descripcion de producto", "")).strip()
+        precio_valor = _leer_valor(row, "precio", "")
         codigo = str(_leer_valor(row, "codigo", "")).strip()
         cantidad_valor = _leer_valor(row, "cantidad", 0)
 
@@ -2126,13 +2135,30 @@ def _leer_pedidos_excel(archivo: io.BytesIO):
         )
 
         linea = pedido["lineas"].get(codigo.lower())
+        descripcion_final = descripcion or _descripcion_por_codigo(codigo)
+        try:
+            precio = float(precio_valor) if precio_valor not in ("", None) else None
+        except (TypeError, ValueError):
+            precio = None
+
         if linea:
             linea["cantidad"] += cantidad
+            linea["descripcion"] = linea.get("descripcion") or descripcion_final
+            linea["precio"] = linea.get("precio") if linea.get("precio") is not None else precio
         else:
-            pedido["lineas"][codigo.lower()] = {"codigo": codigo, "cantidad": cantidad}
+            pedido["lineas"][codigo.lower()] = {
+                "codigo": codigo,
+                "cantidad": cantidad,
+                "descripcion": descripcion_final,
+                "precio": precio,
+            }
 
     pedidos_list = [
-        {"nombre": datos["nombre"], "cliente": datos["cliente"], "lineas": list(datos["lineas"].values())}
+        {
+            "nombre": datos["nombre"],
+            "cliente": datos["cliente"],
+            "lineas": list(datos["lineas"].values()),
+        }
         for datos in pedidos_encontrados.values()
     ]
 
@@ -2190,7 +2216,7 @@ def _registrar_pedidos_importados(pedidos_desde_excel: list[dict]):
         for linea_excel in pedido_excel.get("lineas", []):
             codigo = linea_excel.get("codigo", "")
             cantidad = linea_excel.get("cantidad", 0)
-            descripcion = _descripcion_por_codigo(codigo)
+            descripcion = linea_excel.get("descripcion") or _descripcion_por_codigo(codigo)
 
             linea_existente = next(
                 (
@@ -2263,7 +2289,14 @@ def subir_excel():
 
 @app.route("/subir-excel/plantilla")
 def descargar_plantilla_excel():
-    headers = ["pedido", "cliente", "codigo", "cantidad"]
+    headers = [
+        "pedido",
+        "cliente",
+        "descripcion de producto",
+        "precio",
+        "codigo",
+        "cantidad",
+    ]
     rows: list[list] = []
 
     output = _crear_excel(headers, rows, "Plantilla pedidos")
@@ -2277,20 +2310,41 @@ def descargar_plantilla_excel():
 
 @app.route("/subir-excel/pedidos")
 def descargar_pedidos_excel():
-    headers = ["pedido", "cliente", "codigo", "cantidad"]
+    headers = [
+        "pedido",
+        "cliente",
+        "descripcion de producto",
+        "precio",
+        "codigo",
+        "cantidad",
+    ]
     rows: list[list] = []
 
     for pedido in purchase_orders:
         lineas = pedido.get("lineas") or []
         if not lineas:
-            rows.append([pedido["nombre"], pedido["cliente"], "", ""])
+            rows.append([pedido["nombre"], pedido["cliente"], "", "", "", ""])
             continue
 
         for linea in lineas:
+            articulo = next(
+                (
+                    item
+                    for item in inventory_items
+                    if item["codigo"].lower() == linea.get("codigo", "").lower()
+                ),
+                None,
+            )
+            precio = linea.get("precio")
+            if precio is None and articulo:
+                precio = articulo.get("precio_pvo")
+
             rows.append(
                 [
                     pedido["nombre"],
                     pedido["cliente"],
+                    linea.get("descripcion") or _descripcion_por_codigo(linea.get("codigo", "")),
+                    precio,
                     linea.get("codigo", ""),
                     linea.get("cantidad_pendiente")
                     if linea.get("cantidad_pendiente") is not None
