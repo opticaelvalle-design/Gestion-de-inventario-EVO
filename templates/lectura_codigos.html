@@ -184,76 +184,6 @@
             </form>
         </section>
 
-        <section aria-labelledby="pendientes-heading">
-            <div class="table-toolbar">
-                <div>
-                    <h2 id="pendientes-heading" class="section-title">Líneas con unidades pendientes</h2>
-                    <p class="text-muted">Filtros y acciones en línea para minimizar cambios de pantalla.</p>
-                </div>
-                <div class="table-actions">
-                    <button type="button" class="btn-secondary" data-export="pendientes-table" data-type="csv">Exportar CSV</button>
-                    <button type="button" class="btn-secondary" data-export="pendientes-table" data-type="xls">Exportar XLS</button>
-                </div>
-            </div>
-            <form method="get" class="filters-row" aria-label="Filtros de líneas pendientes">
-                <label for="pendiente_cliente">Cliente</label>
-                <input type="text" name="pendiente_cliente" id="pendiente_cliente" value="{{ pendiente_cliente }}" class="inline-input" />
-                <label for="pendiente_codigo">Código</label>
-                <input type="text" name="pendiente_codigo" id="pendiente_codigo" value="{{ pendiente_codigo }}" class="inline-input" />
-                <label for="pendiente_orden">Orden</label>
-                <select name="pendiente_orden" id="pendiente_orden" class="inline-input">
-                    <option value="fecha_desc" {% if pendiente_orden == 'fecha_desc' %}selected{% endif %}>Fecha</option>
-                    <option value="pendientes" {% if pendiente_orden == 'pendientes' %}selected{% endif %}>Pendientes</option>
-                    <option value="cliente" {% if pendiente_orden == 'cliente' %}selected{% endif %}>Cliente</option>
-                    <option value="codigo" {% if pendiente_orden == 'codigo' %}selected{% endif %}>Código</option>
-                </select>
-                <input type="hidden" name="pendiente_pagina" value="1" />
-                <button type="submit" class="btn-secondary">Aplicar</button>
-            </form>
-            {% if lineas_pendientes %}
-                <div style="overflow-x: auto;">
-                    <table id="pendientes-table">
-                        <thead>
-                            <tr>
-                                <th>Pedido</th>
-                                <th>Cliente</th>
-                                <th>Código</th>
-                                <th>Descripción</th>
-                                <th>Pedidas</th>
-                                <th>Recibidas</th>
-                                <th>Pendientes</th>
-                                <th>Fecha</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for linea in lineas_pendientes %}
-                                <tr>
-                                    <td><a href="{{ url_for('pedido_detalle', pedido_id=linea.pedido_id) }}" class="button-link pill">#{{ linea.pedido_id }}</a></td>
-                                    <td>{{ linea.cliente }}</td>
-                                    <td>{{ linea.codigo }}</td>
-                                    <td>{{ linea.descripcion }}</td>
-                                    <td>{{ linea.cantidad_pedida }}</td>
-                                    <td>{{ linea.cantidad_recibida }}</td>
-                                    <td>{{ linea.cantidad_pendiente }}</td>
-                                    <td>{{ linea.fecha.strftime('%d/%m/%Y') }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <div class="pagination" aria-label="Paginación líneas pendientes">
-                    <span class="text-muted">{{ total_lineas }} resultados</span>
-                    {% for pagina in range(1, paginas_pendientes + 1) %}
-                        <a class="button-link pill {% if pagina == pendiente_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', pendiente_pagina=pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden, gaveta_pagina=gaveta_pagina, gaveta_nombre=gaveta_nombre, gaveta_orden=gaveta_orden) }}">{{ pagina }}</a>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="empty-state">
-                    <p>No hay unidades pendientes en ningún pedido.</p>
-                </div>
-            {% endif %}
-        </section>
-
         <section aria-labelledby="gavetas-heading">
             <div class="table-toolbar">
                 <div>
@@ -298,7 +228,7 @@
                 <div class="pagination" aria-label="Paginación de gavetas activas">
                     <span class="text-muted">{{ total_gavetas }} gavetas</span>
                     {% for pagina in range(1, paginas_gavetas + 1) %}
-                        <a class="button-link pill {% if pagina == gaveta_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', gaveta_pagina=pagina, gaveta_nombre=gaveta_nombre, gaveta_orden=gaveta_orden, pendiente_pagina=pendiente_pagina, pendiente_cliente=pendiente_cliente, pendiente_codigo=pendiente_codigo, pendiente_orden=pendiente_orden) }}">{{ pagina }}</a>
+                        <a class="button-link pill {% if pagina == gaveta_pagina %}badge-contrast{% endif %}" href="{{ url_for('lectura_codigos', gaveta_pagina=pagina, gaveta_nombre=gaveta_nombre, gaveta_orden=gaveta_orden) }}">{{ pagina }}</a>
                     {% endfor %}
                 </div>
             {% else %}

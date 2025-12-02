@@ -1216,26 +1216,6 @@ def gaveta_detalle(nombre: str):
     )
 
 
-def _lineas_pendientes():
-    lineas = []
-    for pedido in purchase_orders:
-        for linea in pedido["lineas"]:
-            if linea["cantidad_pendiente"] > 0:
-                lineas.append(
-                    {
-                        "pedido_id": pedido["id"],
-                        "cliente": pedido["cliente"],
-                        "codigo": linea["codigo"],
-                        "descripcion": linea["descripcion"],
-                        "cantidad_pedida": linea["cantidad_pedida"],
-                        "cantidad_recibida": linea["cantidad_recibida"],
-                        "cantidad_pendiente": linea["cantidad_pendiente"],
-                        "fecha": pedido["fecha"],
-                    }
-                )
-    return lineas
-
-
 def _buscar_linea_en_pedido(pedido_id: int, codigo: str):
     pedido = next((p for p in purchase_orders if p["id"] == pedido_id), None)
     if not pedido:
@@ -1730,10 +1710,6 @@ def _paginar(items, pagina, tamano=6):
 def lectura_codigos():
     resultado = None
     codigo = ""
-    pendiente_cliente = request.args.get("pendiente_cliente", "").strip()
-    pendiente_codigo = request.args.get("pendiente_codigo", "").strip()
-    pendiente_orden = request.args.get("pendiente_orden", "fecha_desc")
-    pendiente_pagina = request.args.get("pendiente_pagina", type=int, default=1)
     gaveta_nombre = request.args.get("gaveta_nombre", "").strip()
     gaveta_orden = request.args.get("gaveta_orden", "nombre")
     gaveta_pagina = request.args.get("gaveta_pagina", type=int, default=1)
@@ -1919,46 +1895,14 @@ def lectura_codigos():
                     codigo = ""
 
     numero_sugerido = _generar_numero_albaran()
-    lineas_pendientes = _lineas_pendientes()
     gavetas_activas = _listar_gavetas_activas()
 
-    def _aplicar_filtros_registros(registros, filtro_cliente, filtro_codigo):
-        filtrados = registros
-        if filtro_cliente:
-            filtrados = [
-                reg
-                for reg in filtrados
-                if filtro_cliente.lower() in reg.get("cliente", "").lower()
-            ]
-        if filtro_codigo:
-            filtrados = [
-                reg
-                for reg in filtrados
-                if filtro_codigo.lower() in reg.get("codigo", "").lower()
-                or filtro_codigo.lower() in reg.get("descripcion", "").lower()
-            ]
-        return filtrados
-
-    lineas_pendientes = _aplicar_filtros_registros(
-        lineas_pendientes, pendiente_cliente, pendiente_codigo
-    )
     if gaveta_nombre:
         gavetas_activas = [
             gaveta
             for gaveta in gavetas_activas
             if gaveta_nombre.lower() in gaveta["nombre"].lower()
         ]
-
-    ordenes_lineas = {
-        "fecha_desc": (lambda l: l["fecha"], True),
-        "pendientes": (lambda l: l["cantidad_pendiente"], True),
-        "cliente": (lambda l: l["cliente"].lower(), False),
-        "codigo": (lambda l: l["codigo"].lower(), False),
-    }
-    key_lineas, reverse_lineas = ordenes_lineas.get(
-        pendiente_orden, (lambda l: l["fecha"], True)
-    )
-    lineas_pendientes = sorted(lineas_pendientes, key=key_lineas, reverse=reverse_lineas)
 
     ordenes_gavetas = {
         "nombre": (lambda g: g["nombre"].lower(), False),
@@ -1969,9 +1913,6 @@ def lectura_codigos():
     )
     gavetas_activas = sorted(gavetas_activas, key=key_gaveta, reverse=reverse_gaveta)
 
-    lineas_paginadas, paginas_pendientes, total_lineas = _paginar(
-        lineas_pendientes, pendiente_pagina
-    )
     gavetas_paginadas, paginas_gavetas, total_gavetas = _paginar(
         gavetas_activas, gaveta_pagina
     )
@@ -1983,17 +1924,10 @@ def lectura_codigos():
         "lectura_codigos.html",
         codigo=codigo,
         resultado=resultado,
-        lineas_pendientes=lineas_paginadas,
         gavetas_activas=gavetas_paginadas,
         albaran_activo=albaran_activo,
         albaranes=albaranes_disponibles,
         numero_sugerido=numero_sugerido,
-        pendiente_cliente=pendiente_cliente,
-        pendiente_codigo=pendiente_codigo,
-        pendiente_orden=pendiente_orden,
-        pendiente_pagina=pendiente_pagina,
-        paginas_pendientes=paginas_pendientes,
-        total_lineas=total_lineas,
         gaveta_nombre=gaveta_nombre,
         gaveta_orden=gaveta_orden,
         gaveta_pagina=gaveta_pagina,
