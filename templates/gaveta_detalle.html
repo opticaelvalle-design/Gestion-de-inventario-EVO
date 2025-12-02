@@ -1,9 +1,25 @@
 {% extends "base.html" %}
 {% block title %}{{ ubicacion.nombre }} · Gestión de Inventario EVO{% endblock %}
 {% block content %}
-<a href="{{ url_for('crear_gavetas') }}" class="button-link" style="margin-bottom: 1rem; display: inline-flex; align-items: center; gap: 0.35rem;">
-    ← Volver a gavetas
-</a>
+<div style="display: flex; align-items: center; gap: 0.75rem; justify-content: space-between; flex-wrap: wrap; margin-bottom: 1rem;">
+    <a href="{{ url_for('crear_gavetas') }}" class="button-link" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+        ← Volver a gavetas
+    </a>
+    <form
+        action="{{ url_for('actualizar_estado_gaveta', nombre=ubicacion.nombre) }}"
+        method="post"
+        class="inline-form"
+        style="gap: 0.5rem; align-items: center;"
+    >
+        <label for="estado_gaveta" class="sr-only">Estado de la gaveta</label>
+        <select id="estado_gaveta" name="estado">
+            <option value="Abierta" {% if estado_gaveta == 'Abierta' %}selected{% endif %}>Abierta</option>
+            <option value="Facturada" {% if estado_gaveta == 'Facturada' %}selected{% endif %}>Facturada</option>
+            <option value="Cerrada" {% if estado_gaveta == 'Cerrada' %}selected{% endif %}>Cerrada</option>
+        </select>
+        <button type="submit" class="button-link">Estado</button>
+    </form>
+</div>
 <section class="card" style="gap: 1rem;">
     <div>
         <h2>{{ ubicacion.nombre }}</h2>
@@ -37,6 +53,7 @@
                 <th>Código</th>
                 <th>Descripción</th>
                 <th>Unidades registradas</th>
+                <th>Estado</th>
             </tr>
         </thead>
         <tbody>
@@ -47,6 +64,7 @@
                 <td>{{ asignacion.codigo }}</td>
                 <td>{{ asignacion.descripcion }}</td>
                 <td>{{ asignacion.unidades }}</td>
+                <td>{{ estado_gaveta }}</td>
             </tr>
             {% endfor %}
         </tbody>
