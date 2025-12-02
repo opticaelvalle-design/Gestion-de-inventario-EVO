@@ -37,6 +37,7 @@
                 <th>Código</th>
                 <th>Descripción</th>
                 <th>Unidades registradas</th>
+                <th>Estado</th>
             </tr>
         </thead>
         <tbody>
@@ -47,6 +48,27 @@
                 <td>{{ asignacion.codigo }}</td>
                 <td>{{ asignacion.descripcion }}</td>
                 <td>{{ asignacion.unidades }}</td>
+                <td>
+                    <form
+                        action="{{ url_for('actualizar_estado_gaveta', nombre=ubicacion.nombre) }}"
+                        method="post"
+                        class="inline-form"
+                        style="gap: 0.5rem; align-items: center;"
+                    >
+                        <input type="hidden" name="pedido_id" value="{{ asignacion.pedido_id }}" />
+                        <input type="hidden" name="codigo" value="{{ asignacion.codigo }}" />
+                        <label for="estado_{{ asignacion.pedido_id }}_{{ asignacion.codigo }}" class="sr-only">Estado</label>
+                        <select
+                            id="estado_{{ asignacion.pedido_id }}_{{ asignacion.codigo }}"
+                            name="estado"
+                        >
+                            <option value="Abierta" {% if asignacion.estado == 'Abierta' %}selected{% endif %}>Abierta</option>
+                            <option value="Facturada" {% if asignacion.estado == 'Facturada' %}selected{% endif %}>Facturada</option>
+                            <option value="Cerrada" {% if asignacion.estado == 'Cerrada' %}selected{% endif %}>Cerrada</option>
+                        </select>
+                        <button type="submit" class="button-link">Estado</button>
+                    </form>
+                </td>
             </tr>
             {% endfor %}
         </tbody>

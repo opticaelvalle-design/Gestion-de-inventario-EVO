@@ -335,6 +335,7 @@ def _init_db_schema():
                 unidades INTEGER NOT NULL,
                 gaveta_nombre TEXT NOT NULL,
                 gaveta_tipo TEXT NOT NULL,
+                estado TEXT NOT NULL DEFAULT 'Abierta',
                 created_at TEXT NOT NULL
             );
             """
@@ -391,6 +392,18 @@ def _migrate_purchase_orders_schema():
 
         if "nombre" not in columns:
             conn.execute("ALTER TABLE purchase_orders ADD COLUMN nombre TEXT DEFAULT ''")
+
+
+def _migrate_gaveta_asignaciones_schema():
+    with get_connection() as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info('gaveta_asignaciones')")}
+        if not columns:
+            return
+
+        if "estado" not in columns:
+            conn.execute(
+                "ALTER TABLE gaveta_asignaciones ADD COLUMN estado TEXT NOT NULL DEFAULT 'Abierta'"
+            )
 
 
 def _seed_if_empty():
@@ -501,25 +514,30 @@ def _load_data():
 
         asignaciones_rows = conn.execute(
             """
-            SELECT pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at
+            SELECT id, pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, estado, created_at
             FROM gaveta_asignaciones
+            ORDER BY created_at, id
             """
         ).fetchall()
-        gaveta_asignaciones = {
-            (row["pedido_id"], row["codigo"].lower()): {
-                "pedido_id": row["pedido_id"],
-                "cliente": row["cliente"],
-                "codigo": row["codigo"],
-                "descripcion": row["descripcion"],
-                "unidades": row["unidades"],
-                "gaveta": {
-                    "nombre": row["gaveta_nombre"],
-                    "tipo": row["gaveta_tipo"],
-                    "created_at": _as_datetime(row["created_at"]),
-                },
-            }
-            for row in asignaciones_rows
-        }
+        gaveta_asignaciones = {}
+        for row in asignaciones_rows:
+            clave = (row["pedido_id"], row["codigo"].lower())
+            gaveta_asignaciones.setdefault(clave, []).append(
+                {
+                    "id": row["id"],
+                    "pedido_id": row["pedido_id"],
+                    "cliente": row["cliente"],
+                    "codigo": row["codigo"],
+                    "descripcion": row["descripcion"],
+                    "unidades": row["unidades"],
+                    "estado": row["estado"] or "Abierta",
+                    "gaveta": {
+                        "nombre": row["gaveta_nombre"],
+                        "tipo": row["gaveta_tipo"],
+                        "created_at": _as_datetime(row["created_at"]),
+                    },
+                }
+            )
         gaveta_secuencia = len(storage_locations) + 1
 
 
@@ -527,6 +545,7 @@ def ensure_database():
     _init_db_schema()
     _migrate_inventory_schema()
     _migrate_purchase_orders_schema()
+    _migrate_gaveta_asignaciones_schema()
     _seed_if_empty()
     _load_data()
 
@@ -916,7 +935,7 @@ def exportar_gavetas():
         )
         unidades_asignadas = sum(
             asignacion["unidades"]
-            for asignacion in gaveta_asignaciones.values()
+            for asignacion in _todas_asignaciones()
             if asignacion["gaveta"]["nombre"].lower() == ubicacion["nombre"].lower()
         )
         rows.append(
@@ -974,7 +993,7 @@ def exportar_gaveta_csv(nombre: str):
         if not producto["descripcion"]:
             producto["descripcion"] = articulo.get("nombre", "")
 
-    for asignacion in gaveta_asignaciones.values():
+    for asignacion in _todas_asignaciones():
         if asignacion["gaveta"]["nombre"].lower() != ubicacion["nombre"].lower():
             continue
 
@@ -1065,12 +1084,52 @@ def renombrar_gaveta(nombre: str):
         if articulo["ubicacion"].lower() == nombre.lower():
             articulo["ubicacion"] = nuevo_nombre
 
-    for asignacion in gaveta_asignaciones.values():
+    for asignacion in _todas_asignaciones():
         if asignacion["gaveta"]["nombre"].lower() == nombre.lower():
             asignacion["gaveta"]["nombre"] = nuevo_nombre
 
     flash("Nombre de gaveta actualizado correctamente.", "success")
     return redirect(url_for("gaveta_detalle", nombre=nuevo_nombre))
+
+
+@app.route("/crear-gavetas/<path:nombre>/actualizar-estado", methods=["POST"])
+def actualizar_estado_gaveta(nombre: str):
+    pedido_id = request.form.get("pedido_id", type=int)
+    codigo = request.form.get("codigo", "").strip()
+    estado = request.form.get("estado", "Abierta")
+
+    if not pedido_id or not codigo:
+        flash("Selecciona una asignación válida para actualizar su estado.", "error")
+        return redirect(url_for("gaveta_detalle", nombre=nombre))
+
+    clave = _clave_gaveta(pedido_id, codigo)
+    asignaciones = _obtener_asignaciones(clave)
+    asignacion = next(
+        (
+            asignacion
+            for asignacion in asignaciones
+            if asignacion["gaveta"]["nombre"].lower() == nombre.lower()
+        ),
+        None,
+    )
+    if not asignacion:
+        flash("No se encontró la asignación solicitada en esta gaveta.", "error")
+        return redirect(url_for("gaveta_detalle", nombre=nombre))
+
+    if asignaciones and asignacion is not asignaciones[-1]:
+        flash(
+            "Solo se puede actualizar el estado de la última asignación activa de ese código.",
+            "error",
+        )
+        return redirect(url_for("gaveta_detalle", nombre=nombre))
+
+    cambio = _establecer_estado_asignacion(asignacion, estado)
+    if cambio:
+        flash(f"Estado actualizado a {asignacion['estado']}.", "success")
+    else:
+        flash("El estado ya estaba configurado con ese valor.", "info")
+
+    return redirect(url_for("gaveta_detalle", nombre=nombre))
 
 
 @app.route("/crear-gavetas/<path:nombre>/eliminar", methods=["POST"])
@@ -1089,13 +1148,20 @@ def eliminar_gaveta(nombre: str):
         flash("No se encontró la ubicación a eliminar.", "error")
         return redirect(url_for("crear_gavetas"))
 
-    asignaciones_a_eliminar = [
-        clave
-        for clave, asignacion in gaveta_asignaciones.items()
-        if asignacion["gaveta"]["nombre"].lower() == ubicacion["nombre"].lower()
-    ]
-    for clave in asignaciones_a_eliminar:
-        del gaveta_asignaciones[clave]
+    claves_para_limpiar = []
+    for clave, asignaciones in gaveta_asignaciones.items():
+        restantes = [
+            asignacion
+            for asignacion in asignaciones
+            if asignacion["gaveta"]["nombre"].lower() != ubicacion["nombre"].lower()
+        ]
+        if restantes:
+            gaveta_asignaciones[clave] = restantes
+        else:
+            claves_para_limpiar.append(clave)
+
+    for clave in claves_para_limpiar:
+        gaveta_asignaciones.pop(clave, None)
 
     storage_locations = [
         ubic
@@ -1138,12 +1204,16 @@ def gaveta_detalle(nombre: str):
     ]
     asignaciones_gaveta = [
         asignacion
-        for asignacion in gaveta_asignaciones.values()
+        for asignacion in _todas_asignaciones()
         if asignacion["gaveta"]["nombre"].lower() == ubicacion["nombre"].lower()
     ]
     asignaciones_gaveta.sort(key=lambda asignacion: (asignacion["pedido_id"], asignacion["codigo"].lower()))
     total_unidades_inventario = sum(item["cantidad"] for item in articulos)
-    total_unidades_asignadas = sum(asignacion["unidades"] for asignacion in asignaciones_gaveta)
+    total_unidades_asignadas = sum(
+        asignacion["unidades"]
+        for asignacion in asignaciones_gaveta
+        if asignacion.get("estado", "Abierta") != "Facturada"
+    )
     total_unidades = total_unidades_inventario + total_unidades_asignadas
 
     return render_template(
@@ -1191,6 +1261,19 @@ def _clave_gaveta(pedido_id: int, codigo: str):
     return (pedido_id, codigo.lower())
 
 
+def _obtener_asignaciones(clave):
+    return gaveta_asignaciones.get(clave, [])
+
+
+def _ultima_asignacion(clave):
+    asignaciones = _obtener_asignaciones(clave)
+    return asignaciones[-1] if asignaciones else None
+
+
+def _todas_asignaciones():
+    return [asig for lista in gaveta_asignaciones.values() for asig in lista]
+
+
 def _generar_nombre_gaveta() -> str:
     global gaveta_secuencia
     nombre = f"Gaveta #{gaveta_secuencia}"
@@ -1200,54 +1283,73 @@ def _generar_nombre_gaveta() -> str:
 
 def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
     clave = _clave_gaveta(pedido["id"], linea["codigo"])
-    asignacion = gaveta_asignaciones.get(clave)
+    asignacion = _ultima_asignacion(clave)
+    asignacion_existente = None
+    gaveta_creada = False
+    gaveta = None
+
     if asignacion:
-        return clave, asignacion, False
+        asignacion.setdefault("estado", "Abierta")
+        if asignacion["estado"] == "Facturada":
+            gaveta = _asegurar_gaveta_existente(_generar_nombre_gaveta())
+            gaveta_creada = True
+            asignacion = {
+                **asignacion,
+                "id": None,
+                "unidades": 0,
+                "estado": "Abierta",
+                "gaveta": gaveta,
+            }
+        else:
+            return clave, asignacion, False
 
-    asignacion_existente = next(
-        (asig for asig in gaveta_asignaciones.values() if asig["pedido_id"] == pedido["id"]),
-        None,
-    )
-
-    if asignacion_existente:
-        gaveta = asignacion_existente["gaveta"]
-        gaveta_creada = False
-    else:
-        gaveta_existente = next(
-            (
-                ubicacion
-                for ubicacion in storage_locations
-                if ubicacion["tipo"].lower() == "gaveta"
-                and ubicacion["nombre"].lower() == pedido["nombre"].lower()
-            ),
+    if not asignacion:
+        asignacion_existente = next(
+            (asig for asig in _todas_asignaciones() if asig["pedido_id"] == pedido["id"]),
             None,
         )
 
-        if gaveta_existente:
-            gaveta = gaveta_existente
-            gaveta_creada = False
+        if asignacion_existente:
+            gaveta = asignacion_existente["gaveta"]
         else:
-            gaveta = _asegurar_gaveta_existente(pedido["nombre"])
-            gaveta_creada = True
+            gaveta_existente = next(
+                (
+                    ubicacion
+                    for ubicacion in storage_locations
+                    if ubicacion["tipo"].lower() == "gaveta"
+                    and ubicacion["nombre"].lower() == pedido["nombre"].lower()
+                ),
+                None,
+            )
 
-    fecha_creacion_gaveta = (
-        asignacion_existente["gaveta"]["created_at"] if asignacion_existente else gaveta["created_at"]
-    )
+            if gaveta_existente:
+                gaveta = gaveta_existente
+            else:
+                gaveta = _asegurar_gaveta_existente(pedido["nombre"])
+                gaveta_creada = True
 
-    asignacion = {
-        "pedido_id": pedido["id"],
-        "cliente": pedido["cliente"],
-        "codigo": linea["codigo"],
-        "descripcion": linea.get("descripcion") or linea.get("nombre", linea["codigo"]),
-        "unidades": 0,
-        "gaveta": gaveta,
-    }
-    gaveta_asignaciones[clave] = asignacion
+        fecha_creacion_gaveta = (
+            asignacion_existente["gaveta"]["created_at"] if asignacion_existente else gaveta["created_at"]
+        )
+
+        asignacion = {
+            "id": None,
+            "pedido_id": pedido["id"],
+            "cliente": pedido["cliente"],
+            "codigo": linea["codigo"],
+            "descripcion": linea.get("descripcion") or linea.get("nombre", linea["codigo"]),
+            "unidades": 0,
+            "estado": "Abierta",
+            "gaveta": gaveta,
+        }
+    else:
+        fecha_creacion_gaveta = asignacion["gaveta"].get("created_at", datetime.now())
+    gaveta_asignaciones.setdefault(clave, []).append(asignacion)
     with get_connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
-            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, estado, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 asignacion["pedido_id"],
@@ -1257,28 +1359,38 @@ def _obtener_o_crear_gaveta(pedido: dict, linea: dict):
                 asignacion["unidades"],
                 gaveta["nombre"],
                 gaveta["tipo"],
+                asignacion["estado"],
                 fecha_creacion_gaveta.isoformat(),
             ),
         )
+        asignacion["id"] = cursor.lastrowid
     return clave, asignacion, gaveta_creada
 
 
 def _actualizar_unidades_gaveta(clave, delta: int):
-    asignacion = gaveta_asignaciones.get(clave)
-    if asignacion:
-        asignacion["unidades"] = max(asignacion["unidades"] + delta, 0)
-        _ajustar_stock_gaveta(asignacion, delta)
-        with get_connection() as conn:
-            conn.execute(
-                "UPDATE gaveta_asignaciones SET unidades = ? WHERE pedido_id = ? AND lower(codigo) = ?",
-                (asignacion["unidades"], clave[0], clave[1].lower()),
-            )
-    return asignacion
+    asignacion = _ultima_asignacion(clave)
+    if not asignacion:
+        return None, False
+
+    estado = asignacion.get("estado", "Abierta")
+    if delta > 0 and estado != "Abierta":
+        return asignacion, False
+
+    asignacion["unidades"] = max(asignacion["unidades"] + delta, 0)
+    _ajustar_stock_gaveta(asignacion, delta)
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE gaveta_asignaciones SET unidades = ? WHERE id = ?",
+            (asignacion["unidades"], asignacion["id"]),
+        )
+    return asignacion, True
 
 
 def _listar_gavetas_activas():
     gavetas = {}
-    for asignacion in gaveta_asignaciones.values():
+    for asignacion in _todas_asignaciones():
+        if asignacion.get("estado", "Abierta") == "Facturada":
+            continue
         nombre = asignacion["gaveta"]["nombre"]
         registro = gavetas.setdefault(nombre, {"nombre": nombre, "unidades": 0})
         registro["unidades"] += asignacion["unidades"]
@@ -1305,12 +1417,12 @@ def _asegurar_gaveta_existente(nombre: str):
 
 
 def _actualizar_destino_gaveta(clave, nuevo_nombre: str):
-    asignacion = gaveta_asignaciones.get(clave)
+    asignacion = _ultima_asignacion(clave)
     if not asignacion:
         return None
 
     nueva_gaveta = _asegurar_gaveta_existente(nuevo_nombre)
-    for asignacion_pedido in gaveta_asignaciones.values():
+    for asignacion_pedido in _todas_asignaciones():
         if asignacion_pedido["pedido_id"] == asignacion["pedido_id"]:
             asignacion_pedido["gaveta"] = nueva_gaveta
 
@@ -1322,8 +1434,40 @@ def _actualizar_destino_gaveta(clave, nuevo_nombre: str):
     return asignacion
 
 
-def _ajustar_stock_gaveta(asignacion: dict, delta: int):
+def _establecer_estado_asignacion(asignacion: dict, nuevo_estado: str):
+    if not asignacion:
+        return False
+
+    estado_normalizado = nuevo_estado.capitalize()
+    if estado_normalizado not in {"Abierta", "Facturada", "Cerrada"}:
+        estado_normalizado = "Abierta"
+
+    estado_anterior = asignacion.get("estado", "Abierta")
+    if estado_anterior == estado_normalizado:
+        return False
+
+    if estado_anterior == "Facturada" and estado_normalizado != "Facturada":
+        _ajustar_stock_gaveta(asignacion, asignacion.get("unidades", 0), permitir_facturado=True)
+    elif estado_anterior != "Facturada" and estado_normalizado == "Facturada":
+        _ajustar_stock_gaveta(asignacion, -asignacion.get("unidades", 0), permitir_facturado=True)
+
+    asignacion["estado"] = estado_normalizado
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE gaveta_asignaciones SET estado = ? WHERE id = ?",
+            (
+                estado_normalizado,
+                asignacion["id"],
+            ),
+        )
+    return True
+
+
+def _ajustar_stock_gaveta(asignacion: dict, delta: int, permitir_facturado: bool = False):
     if not asignacion or delta == 0:
+        return None
+
+    if asignacion.get("estado", "Abierta") == "Facturada" and not permitir_facturado:
         return None
 
     codigo = asignacion["codigo"]
@@ -1397,9 +1541,10 @@ def _transferir_unidades_asignacion(asignacion: dict, nueva_gaveta: dict):
 def _asignar_gaveta_existente(pedido: dict, linea: dict, gaveta: dict):
     clave = _clave_gaveta(pedido["id"], linea["codigo"])
     descripcion = linea.get("descripcion") or linea.get("nombre", linea["codigo"])
-    asignacion = gaveta_asignaciones.get(clave)
+    asignacion = _ultima_asignacion(clave)
 
     if asignacion:
+        asignacion.setdefault("estado", "Abierta")
         _transferir_unidades_asignacion(asignacion, gaveta)
         asignacion["descripcion"] = descripcion
         with get_connection() as conn:
@@ -1407,14 +1552,13 @@ def _asignar_gaveta_existente(pedido: dict, linea: dict, gaveta: dict):
                 """
                 UPDATE gaveta_asignaciones
                 SET descripcion = ?, gaveta_nombre = ?, gaveta_tipo = ?
-                WHERE pedido_id = ? AND lower(codigo) = ?
+                WHERE id = ?
                 """,
                 (
                     descripcion,
                     gaveta["nombre"],
                     gaveta["tipo"],
-                    pedido["id"],
-                    linea["codigo"].lower(),
+                    asignacion["id"],
                 ),
             )
         return clave, asignacion, False
@@ -1425,14 +1569,15 @@ def _asignar_gaveta_existente(pedido: dict, linea: dict, gaveta: dict):
         "codigo": linea["codigo"],
         "descripcion": descripcion,
         "unidades": 0,
+        "estado": "Abierta",
         "gaveta": gaveta,
     }
     gaveta_asignaciones[clave] = nueva_asignacion
     with get_connection() as conn:
         conn.execute(
             """
-            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO gaveta_asignaciones (pedido_id, codigo, cliente, descripcion, unidades, gaveta_nombre, gaveta_tipo, estado, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 nueva_asignacion["pedido_id"],
@@ -1442,6 +1587,7 @@ def _asignar_gaveta_existente(pedido: dict, linea: dict, gaveta: dict):
                 nueva_asignacion["unidades"],
                 gaveta["nombre"],
                 gaveta["tipo"],
+                nueva_asignacion["estado"],
                 datetime.now().isoformat(),
             ),
         )
@@ -1573,7 +1719,7 @@ def _deshacer_ultima_lectura():
     )
     _persistir_linea_pedido(registro["pedido_id"], linea)
     gaveta_key = registro.get("gaveta_key")
-    asignacion = _actualizar_unidades_gaveta(gaveta_key, -1) if gaveta_key else None
+    asignacion, actualizado = _actualizar_unidades_gaveta(gaveta_key, -1) if gaveta_key else (None, False)
     if asignacion:
         registro["gaveta"] = asignacion["gaveta"]["nombre"]
         registro["unidades_gaveta"] = asignacion["unidades"]
@@ -1691,8 +1837,14 @@ def lectura_codigos():
             else:
                 nuevas_unidades = max(0, nuevas_unidades or 0)
                 delta = nuevas_unidades - asignacion["unidades"]
-                _actualizar_unidades_gaveta(clave, delta)
-                flash("Unidades actualizadas en la gaveta.", "success")
+                asignacion, actualizado = _actualizar_unidades_gaveta(clave, delta)
+                if actualizado:
+                    flash("Unidades actualizadas en la gaveta.", "success")
+                elif delta > 0 and asignacion.get("estado") != "Abierta":
+                    flash(
+                        "No es posible añadir unidades mientras la asignación no esté abierta.",
+                        "warning",
+                    )
         elif accion == "mover_gaveta":
             pedido_id = request.form.get("pedido_id", type=int)
             codigo_linea = request.form.get("codigo_linea", "")
@@ -1722,63 +1874,77 @@ def lectura_codigos():
                 if not linea:
                     flash("No hay unidades pendientes para ese código.", "warning")
                 else:
-                    nueva_cantidad_recibida = min(
-                        linea["cantidad_recibida"] + 1, linea["cantidad_pedida"]
-                    )
-                    linea["cantidad_pendiente"] = max(
-                        linea["cantidad_pedida"] - nueva_cantidad_recibida, 0
-                    )
-                    linea["cantidad_recibida"] = nueva_cantidad_recibida
-                    _persistir_linea_pedido(pedido["id"], linea)
-                    completado = linea["cantidad_pendiente"] == 0
                     gaveta_key, asignacion, gaveta_creada = _obtener_o_crear_gaveta(
                         pedido, linea
                     )
-                    _actualizar_unidades_gaveta(gaveta_key, 1)
-                    linea_albaran = _registrar_en_albaran(albaran_activo, linea)
-                    resultado = {
-                        "pedido_id": pedido["id"],
-                        "pedido_nombre": pedido.get("nombre", ""),
-                        "cliente": pedido["cliente"],
-                        "linea": linea,
-                        "completado": completado,
-                        "gaveta": asignacion["gaveta"]["nombre"],
-                        "unidades_gaveta": asignacion["unidades"],
-                        "gaveta_creada": gaveta_creada,
-                        "albaran": albaran_activo["numero"],
-                        "linea_albaran": linea_albaran,
-                    }
-                    lecturas_historial.append(
-                        {
-                            "pedido_id": pedido["id"],
-                            "cliente": pedido["cliente"],
-                            "linea": linea,
-                            "gaveta_key": gaveta_key,
-                        }
-                    )
-                    lecturas_registradas.append(
-                        {
-                            "timestamp": datetime.now(),
-                            "pedido_id": pedido["id"],
-                            "cliente": pedido["cliente"],
-                            "codigo": linea["codigo"],
-                            "descripcion": linea.get("descripcion", ""),
-                            "gaveta": asignacion["gaveta"]["nombre"],
-                            "albaran": albaran_activo["numero"] if albaran_activo else None,
-                            "accion": "lectura",
-                        }
-                    )
-                    if completado:
-                        flash(
-                            f"Se completó la línea del código {linea['codigo']} en el pedido #{pedido['id']}.",
-                            "success",
-                        )
+                    if asignacion.get("estado", "Abierta") != "Abierta":
+                        estado_actual = asignacion.get("estado", "Abierta").lower()
+                        if estado_actual == "facturada":
+                            flash(
+                                "La asignación está facturada: no se añaden más unidades ni computan en existencias.",
+                                "info",
+                            )
+                        else:
+                            flash(
+                                "La asignación está cerrada: no se añaden más unidades a la gaveta.",
+                                "info",
+                            )
                     else:
-                        flash(
-                            f"Registrada 1 unidad para el pedido #{pedido['id']}. Pendientes: {linea['cantidad_pendiente']}.",
-                            "success",
+                        nueva_cantidad_recibida = min(
+                            linea["cantidad_recibida"] + 1, linea["cantidad_pedida"]
                         )
-                    codigo = ""
+                        linea["cantidad_pendiente"] = max(
+                            linea["cantidad_pedida"] - nueva_cantidad_recibida, 0
+                        )
+                        linea["cantidad_recibida"] = nueva_cantidad_recibida
+                        _persistir_linea_pedido(pedido["id"], linea)
+                        completado = linea["cantidad_pendiente"] == 0
+                        asignacion, actualizado = _actualizar_unidades_gaveta(gaveta_key, 1)
+                        if actualizado:
+                            linea_albaran = _registrar_en_albaran(albaran_activo, linea)
+                            resultado = {
+                                "pedido_id": pedido["id"],
+                                "pedido_nombre": pedido.get("nombre", ""),
+                                "cliente": pedido["cliente"],
+                                "linea": linea,
+                                "completado": completado,
+                                "gaveta": asignacion["gaveta"]["nombre"],
+                                "unidades_gaveta": asignacion["unidades"],
+                                "gaveta_creada": gaveta_creada,
+                                "albaran": albaran_activo["numero"],
+                                "linea_albaran": linea_albaran,
+                            }
+                            lecturas_historial.append(
+                                {
+                                    "pedido_id": pedido["id"],
+                                    "cliente": pedido["cliente"],
+                                    "linea": linea,
+                                    "gaveta_key": gaveta_key,
+                                }
+                            )
+                            lecturas_registradas.append(
+                                {
+                                    "timestamp": datetime.now(),
+                                    "pedido_id": pedido["id"],
+                                    "cliente": pedido["cliente"],
+                                    "codigo": linea["codigo"],
+                                    "descripcion": linea.get("descripcion", ""),
+                                    "gaveta": asignacion["gaveta"]["nombre"],
+                                    "albaran": albaran_activo["numero"] if albaran_activo else None,
+                                    "accion": "lectura",
+                                }
+                            )
+                            if completado:
+                                flash(
+                                    f"Se completó la línea del código {linea['codigo']} en el pedido #{pedido['id']}.",
+                                    "success",
+                                )
+                            else:
+                                flash(
+                                    f"Registrada 1 unidad para el pedido #{pedido['id']}. Pendientes: {linea['cantidad_pendiente']}.",
+                                    "success",
+                                )
+                            codigo = ""
 
     numero_sugerido = _generar_numero_albaran()
     lineas_pendientes = _lineas_pendientes()
@@ -2483,13 +2649,19 @@ def eliminar_articulo(codigo: str):
     ]
     inventory_items[:] = inventario_filtrado
 
-    claves_asignaciones = [
-        clave
-        for clave, asignacion in gaveta_asignaciones.items()
-        if asignacion["codigo"].lower() == codigo.lower()
-    ]
+    claves_asignaciones = []
+    for clave, asignaciones in gaveta_asignaciones.items():
+        restantes = [
+            asignacion
+            for asignacion in asignaciones
+            if asignacion["codigo"].lower() != codigo.lower()
+        ]
+        if restantes:
+            gaveta_asignaciones[clave] = restantes
+        else:
+            claves_asignaciones.append(clave)
     for clave in claves_asignaciones:
-        del gaveta_asignaciones[clave]
+        gaveta_asignaciones.pop(clave, None)
 
     with get_connection() as conn:
         conn.execute("DELETE FROM inventory_items WHERE lower(codigo) = ?", (codigo.lower(),))
@@ -2603,9 +2775,9 @@ def eliminar_pedido(pedido_id: int):
 
     purchase_orders = [pedido for pedido in purchase_orders if pedido["id"] != pedido_id]
     gaveta_asignaciones = {
-        clave: asignacion
-        for clave, asignacion in gaveta_asignaciones.items()
-        if asignacion["pedido_id"] != pedido_id
+        clave: [asig for asig in asignaciones if asig["pedido_id"] != pedido_id]
+        for clave, asignaciones in gaveta_asignaciones.items()
+        if any(asig["pedido_id"] != pedido_id for asig in asignaciones)
     }
 
     with get_connection() as conn:
@@ -2752,9 +2924,9 @@ def pedido_detalle(pedido_id: int):
     total_pendiente = sum(linea["cantidad_pendiente"] for linea in pedido["lineas"])
 
     asignaciones = {
-        clave: asignacion
-        for clave, asignacion in gaveta_asignaciones.items()
-        if asignacion["pedido_id"] == pedido_id
+        clave: _ultima_asignacion(clave)
+        for clave in gaveta_asignaciones.keys()
+        if clave[0] == pedido_id
     }
     gavetas_existentes = [
         ubicacion for ubicacion in storage_locations if ubicacion["tipo"].lower() == "gaveta"
