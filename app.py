@@ -412,6 +412,17 @@ def _seed_if_empty():
     # Las tablas se crean vacías; la aplicación opera exclusivamente con datos reales.
 
 
+def _normalizar_estado_pedido(estado: str | None) -> str:
+    estado_normalizado = (estado or "Abierto").strip().capitalize()
+    if estado_normalizado.lower() not in {"abierto", "cerrado"}:
+        estado_normalizado = "Abierto"
+    return estado_normalizado
+
+
+def _pedido_cerrado(pedido: dict) -> bool:
+    return _normalizar_estado_pedido(pedido.get("estado")).lower() == "cerrado"
+
+
 def _load_data():
     global storage_locations, inventory_items, purchase_orders, delivery_notes, gaveta_secuencia, gaveta_asignaciones
     with get_connection() as conn:
@@ -472,7 +483,7 @@ def _load_data():
                     "nombre": pedido["nombre"],
                     "cliente": pedido["cliente"],
                     "fecha": _as_datetime(pedido["fecha"]),
-                    "estado": pedido["estado"],
+                    "estado": _normalizar_estado_pedido(pedido["estado"]),
                     "notas": pedido["notas"],
                     "lineas": lineas,
                 }
@@ -1235,6 +1246,8 @@ def gaveta_detalle(nombre: str):
 def _lineas_pendientes():
     lineas = []
     for pedido in purchase_orders:
+        if _pedido_cerrado(pedido):
+            continue
         for linea in pedido["lineas"]:
             if linea["cantidad_pendiente"] > 0:
                 lineas.append(
@@ -1723,6 +1736,8 @@ def _buscar_linea_por_codigo(codigo: str):
     codigo_lower = codigo.lower()
     pedidos_ordenados = sorted(purchase_orders, key=lambda pedido: pedido["fecha"])
     for pedido in pedidos_ordenados:
+        if _pedido_cerrado(pedido):
+            continue
         for linea in pedido["lineas"]:
             if linea["codigo"].lower() == codigo_lower and linea["cantidad_pendiente"] > 0:
                 return pedido, linea
@@ -2219,7 +2234,7 @@ def _registrar_pedidos_importados(pedidos_desde_excel: list[dict]):
                 "nombre": pedido_excel["nombre"],
                 "cliente": pedido_excel["cliente"],
                 "fecha": datetime.now(),
-                "estado": "Pendiente",
+                "estado": _normalizar_estado_pedido("Abierto"),
                 "notas": "Importado desde XLSX.",
                 "lineas": [],
             }
@@ -2743,7 +2758,7 @@ def pedidos():
                 "nombre": nombre_pedido,
                 "cliente": cliente,
                 "fecha": datetime.now(),
-                "estado": "Pendiente",
+                "estado": _normalizar_estado_pedido("Abierto"),
                 "notas": "Creado manualmente desde la pantalla de pedidos.",
                 "lineas": [nueva_linea],
             }
@@ -2776,7 +2791,8 @@ def pedidos():
     pedidos_abiertos = sum(
         1
         for pedido in purchase_orders
-        if any(linea["cantidad_pendiente"] > 0 for linea in pedido["lineas"])
+        if not _pedido_cerrado(pedido)
+        and any(linea["cantidad_pendiente"] > 0 for linea in pedido["lineas"])
     )
 
     return render_template(
@@ -2836,11 +2852,13 @@ def editar_pedido(pedido_id: int):
         flash("La fecha indicada no es válida.", "error")
         return redirect(url_for("pedido_detalle", pedido_id=pedido_id))
 
+    estado_normalizado = _normalizar_estado_pedido(estado)
+
     pedido.update(
         {
             "nombre": nombre,
             "cliente": cliente,
-            "estado": estado,
+            "estado": estado_normalizado,
             "fecha": fecha,
             "notas": notas,
         }
@@ -2849,7 +2867,14 @@ def editar_pedido(pedido_id: int):
     with get_connection() as conn:
         conn.execute(
             "UPDATE purchase_orders SET nombre = ?, cliente = ?, fecha = ?, estado = ?, notas = ? WHERE id = ?",
-            (nombre, cliente, fecha.isoformat(), estado, notas, pedido_id),
+            (
+                nombre,
+                cliente,
+                fecha.isoformat(),
+                estado_normalizado,
+                notas,
+                pedido_id,
+            ),
         )
 
     flash("Pedido actualizado correctamente.", "success")

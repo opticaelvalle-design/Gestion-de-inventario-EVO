@@ -99,7 +99,7 @@
                     <td>{{ pedido.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
                     <td>
                         {% set estado = pedido.estado.lower() %}
-                        <span class="badge {% if 'pend' in estado %}badge-warning{% elif 'recib' in estado %}badge-success{% else %}badge-neutral{% endif %}">{{ pedido.estado }}</span>
+                        <span class="badge {% if estado == 'cerrado' %}badge-neutral{% else %}badge-success{% endif %}">{{ pedido.estado }}</span>
                     </td>
                     <td>{{ pedido.lineas|length }}</td>
                     <td>{{ pedido.lineas | sum(attribute='cantidad_pedida') }}</td>

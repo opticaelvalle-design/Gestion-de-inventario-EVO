@@ -5,7 +5,7 @@
     <a class="button-link" href="{{ url_for('pedidos') }}" style="display: inline-flex; align-items: center; gap: 0.35rem;">← Volver al listado</a>
     <div class="pill-group" style="align-items: center; gap: 0.5rem;">
         {% set estado = pedido.estado.lower() %}
-        <span class="badge {% if 'pend' in estado %}badge-warning{% elif 'recib' in estado %}badge-success{% else %}badge-neutral{% endif %}">Estado: {{ pedido.estado }}</span>
+        <span class="badge {% if estado == 'cerrado' %}badge-neutral{% else %}badge-success{% endif %}">Estado: {{ pedido.estado }}</span>
         <span class="badge badge-info">Pedido #{{ pedido.id }}</span>
         <button id="toggle-editar" type="button" class="button-link" style="display: inline-flex; align-items: center; gap: 0.35rem;">
             ✏️ Editar pedido
@@ -85,10 +85,8 @@
             <label for="estado">Estado</label>
             <select id="estado" name="estado" required>
                 {% set estado_normalizado = pedido.estado.lower() %}
-                <option value="Pendiente" {% if 'pend' in estado_normalizado %}selected{% endif %}>Pendiente</option>
-                <option value="Parcial" {% if 'parc' in estado_normalizado %}selected{% endif %}>Parcial</option>
-                <option value="Completado" {% if 'compl' in estado_normalizado %}selected{% endif %}>Completado</option>
-                <option value="Recibido" {% if 'recib' in estado_normalizado %}selected{% endif %}>Recibido</option>
+                <option value="Abierto" {% if estado_normalizado != 'cerrado' %}selected{% endif %}>Abierto</option>
+                <option value="Cerrado" {% if estado_normalizado == 'cerrado' %}selected{% endif %}>Cerrado</option>
             </select>
         </div>
         <div style="grid-column: 1 / -1;">
