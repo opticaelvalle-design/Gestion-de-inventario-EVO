@@ -11,6 +11,7 @@ from flask import (
     render_template,
     request,
     send_file,
+    session,
     url_for,
 )
 from openpyxl import Workbook, load_workbook
@@ -32,7 +33,6 @@ purchase_orders = []
 delivery_notes = []
 gaveta_asignaciones = {}
 gaveta_secuencia = 1
-active_delivery_note_id = None
 
 OPTICA_BRANCHES = ["Blanca", "Abarán", "Bajo", "Murcia"]
 optica_inventory = {sucursal: [] for sucursal in OPTICA_BRANCHES}
@@ -1728,7 +1728,6 @@ def _paginar(items, pagina, tamano=6):
 
 @app.route("/lectura-codigos", methods=["GET", "POST"])
 def lectura_codigos():
-    global active_delivery_note_id
     resultado = None
     codigo = ""
     pendiente_cliente = request.args.get("pendiente_cliente", "").strip()
@@ -1738,6 +1737,7 @@ def lectura_codigos():
     gaveta_nombre = request.args.get("gaveta_nombre", "").strip()
     gaveta_orden = request.args.get("gaveta_orden", "nombre")
     gaveta_pagina = request.args.get("gaveta_pagina", type=int, default=1)
+    active_delivery_note_id = session.get("active_delivery_note_id")
     albaran_activo = _buscar_albaran(active_delivery_note_id) if active_delivery_note_id else None
 
     if request.method == "POST":
@@ -1746,7 +1746,7 @@ def lectura_codigos():
             proveedor = request.form.get("proveedor")
             numero_albaran = request.form.get("numero")
             nuevo_albaran = _crear_albaran(numero_albaran, proveedor)
-            active_delivery_note_id = nuevo_albaran["id"]
+            session["active_delivery_note_id"] = nuevo_albaran["id"]
             albaran_activo = nuevo_albaran
             flash(
                 f"Albarán {nuevo_albaran['numero']} creado y listo para registrar lecturas.",
@@ -1756,7 +1756,7 @@ def lectura_codigos():
             albaran_id = request.form.get("albaran_id", type=int)
             seleccionado = _buscar_albaran(albaran_id) if albaran_id else None
             if seleccionado:
-                active_delivery_note_id = seleccionado["id"]
+                session["active_delivery_note_id"] = seleccionado["id"]
                 albaran_activo = seleccionado
                 flash(
                     f"Leyendo códigos en el albarán {seleccionado['numero']}.", "info"
@@ -1764,7 +1764,7 @@ def lectura_codigos():
             else:
                 flash("Selecciona un albarán válido para continuar.", "warning")
         elif accion == "detener_albaran":
-            active_delivery_note_id = None
+            session.pop("active_delivery_note_id", None)
             albaran_activo = None
             flash("Se detuvo la lectura en el albarán en curso.", "info")
         elif accion == "deshacer":
