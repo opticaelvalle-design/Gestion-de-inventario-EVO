@@ -2284,8 +2284,8 @@ def subir_excel():
         archivo = request.files.get("archivo")
         if not archivo or archivo.filename == "":
             flash("Selecciona un archivo para subir.", "error")
-        elif not archivo.filename.lower().endswith((".xlsx", ".xls", ".csv")):
-            flash("Formato no soportado. Usa Excel o CSV.", "error")
+        elif not archivo.filename.lower().endswith(".xlsx"):
+            flash("Formato no soportado. Usa un archivo XLSX.", "error")
         else:
             contenido = archivo.read()
             archivo.seek(0)
@@ -2301,18 +2301,51 @@ def subir_excel():
 
 @app.route("/subir-excel/plantilla")
 def descargar_plantilla_excel():
-    headers = ["codigo", "nombre", "cantidad", "ubicacion"]
+    headers = ["pedido", "cliente", "codigo", "cantidad"]
     rows = [
-        ["ABC123", "Tornillo M4", 25, "Gaveta A1"],
-        ["XYZ789", "Arandela 12mm", 40, "Baldas Zona B"],
-        ["LMN456", "Destornillador plano", 5, "Gaveta A1"],
+        ["PED-1001", "Óptica Centro", "ABC123", 25],
+        ["PED-1002", "Óptica Norte", "XYZ789", 12],
+        ["PED-1003", "Óptica Sur", "LMN456", 4],
     ]
 
-    output = _crear_excel(headers, rows, "Plantilla carga")
+    output = _crear_excel(headers, rows, "Plantilla pedidos")
     return send_file(
         output,
         as_attachment=True,
-        download_name="plantilla_carga_inventario.xlsx",
+        download_name="plantilla_pedidos.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@app.route("/subir-excel/pedidos")
+def descargar_pedidos_excel():
+    headers = ["pedido", "cliente", "codigo", "cantidad"]
+    rows: list[list] = []
+
+    for pedido in purchase_orders:
+        lineas = pedido.get("lineas") or []
+        if not lineas:
+            rows.append([pedido["nombre"], pedido["cliente"], "", ""])
+            continue
+
+        for linea in lineas:
+            rows.append(
+                [
+                    pedido["nombre"],
+                    pedido["cliente"],
+                    linea.get("codigo", ""),
+                    linea.get("cantidad_pendiente")
+                    if linea.get("cantidad_pendiente") is not None
+                    else linea.get("cantidad_pedida"),
+                ]
+            )
+
+    output = _crear_excel(headers, rows, "Pedidos actuales")
+    filename = f"pedidos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 

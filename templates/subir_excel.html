@@ -1,19 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Subir Excel · Gestión de Inventario EVO{% endblock %}
 {% block content %}
-<h2 class="section-title">Importar datos desde Excel o CSV</h2>
-<p>Selecciona un archivo en formato Excel o CSV para simular su procesamiento. Esta demostración valida el formato y ofrece un resumen básico del archivo.</p>
-<section class="card" style="gap: 1rem;">
-    <form method="post" enctype="multipart/form-data" novalidate>
-        <div>
-            <label for="archivo">Archivo</label>
-            <input type="file" id="archivo" name="archivo" accept=".xlsx,.xls,.csv" required />
-        </div>
-        <input type="submit" value="Subir archivo" />
-    </form>
+<div class="content-header">
     <div>
-        <p>Puedes descargar una plantilla base para preparar tus datos antes de importarlos.</p>
-        <a class="button-link" href="{{ url_for('descargar_plantilla_excel') }}">Descargar plantilla</a>
+        <h2>Pedidos mediante Excel</h2>
+        <p>Prepara tus pedidos con el formato estándar y súbelos en XLSX para acelerar la carga de líneas.</p>
+    </div>
+    <div class="meta">
+        <strong>Formato requerido</strong>
+        <p>La plantilla y las exportaciones usan las columnas: <em>pedido</em>, <em>cliente</em>, <em>codigo</em>, <em>cantidad</em>.</p>
+    </div>
+</div>
+
+<section class="card" style="display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-items: start;">
+    <div>
+        <h3 class="section-title" style="margin-top: 0;">Descargar plantilla pedidos</h3>
+        <p>Obtén el archivo base con el orden y nombres de columnas correctos.</p>
+        <a class="button-link" href="{{ url_for('descargar_plantilla_excel') }}">Descargar plantilla pedidos</a>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" novalidate>
+        <h3 class="section-title" style="margin-top: 0;">Subir pedidos en XLSX</h3>
+        <p>Selecciona un archivo Excel con los pedidos listos para cargar.</p>
+        <label for="archivo">Archivo</label>
+        <input type="file" id="archivo" name="archivo" accept=".xlsx" required />
+        <input type="submit" value="Subir pedidos en XLSX" />
+    </form>
+
+    <div>
+        <h3 class="section-title" style="margin-top: 0;">Descargar pedidos en XLSX</h3>
+        <p>Exporta los pedidos existentes al mismo formato para revisar o actualizar.</p>
+        <a class="button-link" href="{{ url_for('descargar_pedidos_excel') }}">Descargar pedidos en XLSX</a>
     </div>
 </section>
 
