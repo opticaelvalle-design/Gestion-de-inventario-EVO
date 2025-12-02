@@ -1216,26 +1216,6 @@ def gaveta_detalle(nombre: str):
     )
 
 
-def _lineas_pendientes():
-    lineas = []
-    for pedido in purchase_orders:
-        for linea in pedido["lineas"]:
-            if linea["cantidad_pendiente"] > 0:
-                lineas.append(
-                    {
-                        "pedido_id": pedido["id"],
-                        "cliente": pedido["cliente"],
-                        "codigo": linea["codigo"],
-                        "descripcion": linea["descripcion"],
-                        "cantidad_pedida": linea["cantidad_pedida"],
-                        "cantidad_recibida": linea["cantidad_recibida"],
-                        "cantidad_pendiente": linea["cantidad_pendiente"],
-                        "fecha": pedido["fecha"],
-                    }
-                )
-    return lineas
-
-
 def _buscar_linea_en_pedido(pedido_id: int, codigo: str):
     pedido = next((p for p in purchase_orders if p["id"] == pedido_id), None)
     if not pedido:
@@ -1730,10 +1710,6 @@ def _paginar(items, pagina, tamano=6):
 def lectura_codigos():
     resultado = None
     codigo = ""
-    pendiente_cliente = request.args.get("pendiente_cliente", "").strip()
-    pendiente_codigo = request.args.get("pendiente_codigo", "").strip()
-    pendiente_orden = request.args.get("pendiente_orden", "fecha_desc")
-    pendiente_pagina = request.args.get("pendiente_pagina", type=int, default=1)
     gaveta_nombre = request.args.get("gaveta_nombre", "").strip()
     gaveta_orden = request.args.get("gaveta_orden", "nombre")
     gaveta_pagina = request.args.get("gaveta_pagina", type=int, default=1)
@@ -1919,46 +1895,14 @@ def lectura_codigos():
                     codigo = ""
 
     numero_sugerido = _generar_numero_albaran()
-    lineas_pendientes = _lineas_pendientes()
     gavetas_activas = _listar_gavetas_activas()
 
-    def _aplicar_filtros_registros(registros, filtro_cliente, filtro_codigo):
-        filtrados = registros
-        if filtro_cliente:
-            filtrados = [
-                reg
-                for reg in filtrados
-                if filtro_cliente.lower() in reg.get("cliente", "").lower()
-            ]
-        if filtro_codigo:
-            filtrados = [
-                reg
-                for reg in filtrados
-                if filtro_codigo.lower() in reg.get("codigo", "").lower()
-                or filtro_codigo.lower() in reg.get("descripcion", "").lower()
-            ]
-        return filtrados
-
-    lineas_pendientes = _aplicar_filtros_registros(
-        lineas_pendientes, pendiente_cliente, pendiente_codigo
-    )
     if gaveta_nombre:
         gavetas_activas = [
             gaveta
             for gaveta in gavetas_activas
             if gaveta_nombre.lower() in gaveta["nombre"].lower()
         ]
-
-    ordenes_lineas = {
-        "fecha_desc": (lambda l: l["fecha"], True),
-        "pendientes": (lambda l: l["cantidad_pendiente"], True),
-        "cliente": (lambda l: l["cliente"].lower(), False),
-        "codigo": (lambda l: l["codigo"].lower(), False),
-    }
-    key_lineas, reverse_lineas = ordenes_lineas.get(
-        pendiente_orden, (lambda l: l["fecha"], True)
-    )
-    lineas_pendientes = sorted(lineas_pendientes, key=key_lineas, reverse=reverse_lineas)
 
     ordenes_gavetas = {
         "nombre": (lambda g: g["nombre"].lower(), False),
@@ -1969,9 +1913,6 @@ def lectura_codigos():
     )
     gavetas_activas = sorted(gavetas_activas, key=key_gaveta, reverse=reverse_gaveta)
 
-    lineas_paginadas, paginas_pendientes, total_lineas = _paginar(
-        lineas_pendientes, pendiente_pagina
-    )
     gavetas_paginadas, paginas_gavetas, total_gavetas = _paginar(
         gavetas_activas, gaveta_pagina
     )
@@ -1983,17 +1924,10 @@ def lectura_codigos():
         "lectura_codigos.html",
         codigo=codigo,
         resultado=resultado,
-        lineas_pendientes=lineas_paginadas,
         gavetas_activas=gavetas_paginadas,
         albaran_activo=albaran_activo,
         albaranes=albaranes_disponibles,
         numero_sugerido=numero_sugerido,
-        pendiente_cliente=pendiente_cliente,
-        pendiente_codigo=pendiente_codigo,
-        pendiente_orden=pendiente_orden,
-        pendiente_pagina=pendiente_pagina,
-        paginas_pendientes=paginas_pendientes,
-        total_lineas=total_lineas,
         gaveta_nombre=gaveta_nombre,
         gaveta_orden=gaveta_orden,
         gaveta_pagina=gaveta_pagina,
@@ -2082,11 +2016,20 @@ def _leer_pedidos_excel(archivo: io.BytesIO):
         str(cell).strip().lower() if cell is not None else "" for cell in rows[0]
     ]
     header_map = {nombre: idx for idx, nombre in enumerate(headers)}
-    required_headers = {"pedido", "cliente", "codigo", "cantidad"}
+    required_headers = {
+        "pedido",
+        "cliente",
+        "descripcion de producto",
+        "precio",
+        "codigo",
+        "cantidad",
+        "cantidad_pendiente",
+        "cantidad_recibida",
+    }
 
     if not required_headers.issubset(header_map):
         raise ValueError(
-            "La plantilla debe incluir las columnas: pedido, cliente, codigo y cantidad."
+            "La plantilla debe incluir las columnas: pedido, cliente, descripcion de producto, precio, codigo, cantidad, cantidad_pendiente y cantidad_recibida."
         )
 
     def _leer_valor(row, key, default=None):
@@ -2101,6 +2044,12 @@ def _leer_pedidos_excel(archivo: io.BytesIO):
     resumen = {"procesadas": 0, "omitidas": 0}
     pedidos_encontrados: dict[tuple[str, str], dict] = {}
 
+    def _parse_int(valor):
+        try:
+            return int(float(valor))
+        except (TypeError, ValueError):
+            return None
+
     for row in rows[1:]:
         if all(cell is None or str(cell).strip() == "" for cell in row):
             continue
@@ -2108,15 +2057,39 @@ def _leer_pedidos_excel(archivo: io.BytesIO):
         resumen["procesadas"] += 1
         pedido_nombre = str(_leer_valor(row, "pedido", "")).strip()
         cliente = str(_leer_valor(row, "cliente", "")).strip()
+        descripcion = str(_leer_valor(row, "descripcion de producto", "")).strip()
+        precio_valor = _leer_valor(row, "precio", "")
         codigo = str(_leer_valor(row, "codigo", "")).strip()
-        cantidad_valor = _leer_valor(row, "cantidad", 0)
+        cantidad_pedida_valor = _leer_valor(row, "cantidad")
+        cantidad_pendiente_valor = _leer_valor(row, "cantidad_pendiente")
+        cantidad_recibida_valor = _leer_valor(row, "cantidad_recibida")
 
-        try:
-            cantidad = int(float(cantidad_valor))
-        except (TypeError, ValueError):
-            cantidad = -1
+        cantidad_pedida = _parse_int(cantidad_pedida_valor)
+        cantidad_pendiente = _parse_int(cantidad_pendiente_valor)
+        cantidad_recibida = _parse_int(cantidad_recibida_valor)
 
-        if not pedido_nombre or not cliente or not codigo or cantidad <= 0:
+        if cantidad_pedida is None:
+            if cantidad_pendiente is not None or cantidad_recibida is not None:
+                cantidad_pedida = max(cantidad_pendiente or 0, 0) + max(
+                    cantidad_recibida or 0, 0
+                )
+            else:
+                cantidad_pedida = -1
+
+        if cantidad_recibida is None:
+            cantidad_recibida = 0
+
+        cantidad_pedida = max(cantidad_pedida, -1)
+        cantidad_recibida = max(0, min(cantidad_recibida, cantidad_pedida))
+
+        if cantidad_pendiente is None:
+            cantidad_pendiente = max(cantidad_pedida - cantidad_recibida, 0)
+        else:
+            cantidad_pendiente = max(0, min(cantidad_pendiente, cantidad_pedida))
+            if cantidad_pendiente + cantidad_recibida > cantidad_pedida:
+                cantidad_pendiente = max(cantidad_pedida - cantidad_recibida, 0)
+
+        if (not pedido_nombre) or (not cliente) or (not codigo) or cantidad_pedida <= 0:
             resumen["omitidas"] += 1
             continue
 
@@ -2126,13 +2099,36 @@ def _leer_pedidos_excel(archivo: io.BytesIO):
         )
 
         linea = pedido["lineas"].get(codigo.lower())
+        descripcion_final = descripcion or _descripcion_por_codigo(codigo)
+        try:
+            precio = float(precio_valor) if precio_valor not in ("", None) else None
+        except (TypeError, ValueError):
+            precio = None
+
         if linea:
-            linea["cantidad"] += cantidad
+            linea["cantidad_pedida"] += cantidad_pedida
+            linea["cantidad_recibida"] += cantidad_recibida
+            linea["cantidad_pendiente"] = max(
+                linea["cantidad_pedida"] - linea["cantidad_recibida"], 0
+            )
+            linea["descripcion"] = linea.get("descripcion") or descripcion_final
+            linea["precio"] = linea.get("precio") if linea.get("precio") is not None else precio
         else:
-            pedido["lineas"][codigo.lower()] = {"codigo": codigo, "cantidad": cantidad}
+            pedido["lineas"][codigo.lower()] = {
+                "codigo": codigo,
+                "cantidad_pedida": cantidad_pedida,
+                "cantidad_recibida": cantidad_recibida,
+                "cantidad_pendiente": cantidad_pendiente,
+                "descripcion": descripcion_final,
+                "precio": precio,
+            }
 
     pedidos_list = [
-        {"nombre": datos["nombre"], "cliente": datos["cliente"], "lineas": list(datos["lineas"].values())}
+        {
+            "nombre": datos["nombre"],
+            "cliente": datos["cliente"],
+            "lineas": list(datos["lineas"].values()),
+        }
         for datos in pedidos_encontrados.values()
     ]
 
@@ -2189,8 +2185,10 @@ def _registrar_pedidos_importados(pedidos_desde_excel: list[dict]):
 
         for linea_excel in pedido_excel.get("lineas", []):
             codigo = linea_excel.get("codigo", "")
-            cantidad = linea_excel.get("cantidad", 0)
-            descripcion = _descripcion_por_codigo(codigo)
+            cantidad_pedida = linea_excel.get("cantidad_pedida", 0)
+            cantidad_recibida = linea_excel.get("cantidad_recibida", 0)
+            cantidad_pendiente = linea_excel.get("cantidad_pendiente", cantidad_pedida)
+            descripcion = linea_excel.get("descripcion") or _descripcion_por_codigo(codigo)
 
             linea_existente = next(
                 (
@@ -2202,8 +2200,13 @@ def _registrar_pedidos_importados(pedidos_desde_excel: list[dict]):
             )
 
             if linea_existente:
-                linea_existente["cantidad_pedida"] += cantidad
-                linea_existente["cantidad_pendiente"] += cantidad
+                linea_existente["cantidad_pedida"] += cantidad_pedida
+                linea_existente["cantidad_recibida"] += cantidad_recibida
+                linea_existente["cantidad_pendiente"] = max(
+                    linea_existente["cantidad_pedida"]
+                    - linea_existente["cantidad_recibida"],
+                    0,
+                )
                 linea_existente["descripcion"] = linea_existente.get("descripcion") or descripcion
                 _persistir_linea_pedido(pedido_objetivo["id"], linea_existente)
                 resultados["lineas_actualizadas"] += 1
@@ -2211,10 +2214,16 @@ def _registrar_pedidos_importados(pedidos_desde_excel: list[dict]):
                 nueva_linea = {
                     "codigo": codigo,
                     "descripcion": descripcion,
-                    "cantidad_pedida": cantidad,
-                    "cantidad_recibida": 0,
-                    "cantidad_pendiente": cantidad,
+                    "cantidad_pedida": cantidad_pedida,
+                    "cantidad_recibida": cantidad_recibida,
+                    "cantidad_pendiente": max(
+                        cantidad_pedida - cantidad_recibida, cantidad_pendiente
+                    ),
                 }
+                nueva_linea["cantidad_pendiente"] = max(
+                    min(nueva_linea["cantidad_pendiente"], nueva_linea["cantidad_pedida"]),
+                    0,
+                )
                 pedido_objetivo["lineas"].append(nueva_linea)
                 _insertar_linea_pedido(pedido_objetivo["id"], nueva_linea)
                 resultados["lineas_creadas"] += 1
@@ -2263,7 +2272,16 @@ def subir_excel():
 
 @app.route("/subir-excel/plantilla")
 def descargar_plantilla_excel():
-    headers = ["pedido", "cliente", "codigo", "cantidad"]
+    headers = [
+        "pedido",
+        "cliente",
+        "descripcion de producto",
+        "precio",
+        "codigo",
+        "cantidad",
+        "cantidad_pendiente",
+        "cantidad_recibida",
+    ]
     rows: list[list] = []
 
     output = _crear_excel(headers, rows, "Plantilla pedidos")
@@ -2277,24 +2295,56 @@ def descargar_plantilla_excel():
 
 @app.route("/subir-excel/pedidos")
 def descargar_pedidos_excel():
-    headers = ["pedido", "cliente", "codigo", "cantidad"]
+    headers = [
+        "pedido",
+        "cliente",
+        "descripcion de producto",
+        "precio",
+        "codigo",
+        "cantidad",
+        "cantidad_pendiente",
+        "cantidad_recibida",
+    ]
     rows: list[list] = []
 
     for pedido in purchase_orders:
         lineas = pedido.get("lineas") or []
         if not lineas:
-            rows.append([pedido["nombre"], pedido["cliente"], "", ""])
+            rows.append([
+                pedido["nombre"],
+                pedido["cliente"],
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            ])
             continue
 
         for linea in lineas:
+            articulo = next(
+                (
+                    item
+                    for item in inventory_items
+                    if item["codigo"].lower() == linea.get("codigo", "").lower()
+                ),
+                None,
+            )
+            precio = linea.get("precio")
+            if precio is None and articulo:
+                precio = articulo.get("precio_pvo")
+
             rows.append(
                 [
                     pedido["nombre"],
                     pedido["cliente"],
+                    linea.get("descripcion") or _descripcion_por_codigo(linea.get("codigo", "")),
+                    precio,
                     linea.get("codigo", ""),
-                    linea.get("cantidad_pendiente")
-                    if linea.get("cantidad_pendiente") is not None
-                    else linea.get("cantidad_pedida"),
+                    linea.get("cantidad_pedida"),
+                    linea.get("cantidad_pendiente"),
+                    linea.get("cantidad_recibida"),
                 ]
             )
 
