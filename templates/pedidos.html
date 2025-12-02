@@ -83,6 +83,7 @@
                     <th>Cliente</th>
                     <th>Fecha</th>
                     <th>Estado</th>
+                    <th>Lecturas</th>
                     <th>Líneas</th>
                     <th>Unidades pedidas</th>
                     <th>Unidades pendientes</th>
@@ -100,6 +101,14 @@
                     <td>
                         {% set estado = pedido.estado.lower() %}
                         <span class="badge {% if 'pend' in estado %}badge-warning{% elif 'recib' in estado %}badge-success{% else %}badge-neutral{% endif %}">{{ pedido.estado }}</span>
+                    </td>
+                    <td>
+                        <form method="post" action="{{ url_for('actualizar_estado_cierre_pedido', pedido_id=pedido.id) }}" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                            <select name="cerrado" onchange="this.form.submit()">
+                                <option value="0" {% if not pedido.cerrado %}selected{% endif %}>Abierto</option>
+                                <option value="1" {% if pedido.cerrado %}selected{% endif %}>Cerrado</option>
+                            </select>
+                        </form>
                     </td>
                     <td>{{ pedido.lineas|length }}</td>
                     <td>{{ pedido.lineas | sum(attribute='cantidad_pedida') }}</td>
